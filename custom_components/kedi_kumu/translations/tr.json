@@ -37,8 +37,9 @@
           "cat_out": "Kedi çıktı",
           "clean": "Temizleniyor",
           "sleep": "Uyku",
-          "uv": "UV",
-          "other": "Diğer"
+          "uv": "Sterilize ediliyor",
+          "other": "Diğer",
+          "smooth": "Kum düzleniyor"
         }
       },
       "last_cat": {

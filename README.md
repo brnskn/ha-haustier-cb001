@@ -48,6 +48,11 @@ This integration decodes those records and turns them into visits.
   - Box controls: clean, light, auto clean.
   - Warnings when the waste bag is full, the drawer is out, or the scale looks wrong.
   - A `compact` mode for overview dashboards.
+- **Box controls and hidden settings** (read and written over the LAN with the key the Tuya integration already has, Tuya protocol 3.5):
+  - Level litter, UV sterilization, drum light, auto clean and clean delay.
+  - Child lock, Do Not Disturb (time range), cleaning schedule, sterilization schedule.
+  - Deodorizer days left.
+  - All faults: waste bag full, drawer out, motor, weight sensor, filter. Each one sends a phone notification that clears itself when fixed.
 - **Entities per cat**, so Home Assistant keeps long-term statistics:
   - Weight (kg).
   - Last visit.
@@ -221,6 +226,22 @@ A real visit looks like this:
 ```
 
 Other data points used: `dp24` box state, `dp7` visits today, `dp8` duration of the last visit.
+
+### Data points outside the cloud schema
+
+These were mapped by toggling each setting in the Tuya app and watching the device. Raw values are base64.
+
+| DP | Setting | Value |
+| --- | --- | --- |
+| 102 | Level litter | bool trigger (state becomes `smooth`) |
+| 103 | Child lock | bool |
+| 105 | Do Not Disturb | raw `start_h start_m end_h end_m enabled` |
+| 106 | Sterilization schedule | raw, 5 bytes per entry: `hour minute flags minutes enabled` |
+| 107 | Cleaning schedule | raw, 3 bytes per entry: `hour minute enabled` |
+| 109 | Deodorizer days left | int |
+| 101, 108 | Not mapped yet (one is "add litter", which empties the drum) | bool |
+
+DP 105–107 are only pushed when they change, so the integration stores their last value. The other data points are read over the LAN every 10 minutes and after each command.
 
 ### Recognition rules
 

@@ -29,8 +29,12 @@ from .const import (
     DEFAULT_MIN_MANUAL,
     DOMAIN,
     DP_DURATION_DAY,
+    DP_FAULT,
     DP_RECORD,
     DP_STATUS,
+    FAULT_LABELS,
+    FAULT_MESSAGES,
+    SCHEMA_DPS,
     EVENT_ANOMALY,
     EVENT_VISIT,
     MAX_SAMPLES,
@@ -46,6 +50,18 @@ from .const import (
     ST_PENDING,
     URL_PHOTOS,
     VISIT_TIMEOUT,
+)
+from .local import LocalBox, LocalError
+from .settings import (
+    DP_CHILD_LOCK,
+    DP_CLEAN_SCHEDULE,
+    DP_DND,
+    DP_LEVEL,
+    DP_STERILIZE_SCHEDULE,
+    decode_settings,
+    encode_clean_schedule,
+    encode_dnd,
+    encode_sterilize_schedule,
 )
 from .protocol import (
     REC_CLEAN_DONE,
@@ -92,6 +108,9 @@ class LitterTracker:
         self._subscribers: set[Callable[[], None]] = set()
         self._hooked_manager: Any = None
         self.photo_dir = Path(hass.config.path(DOMAIN, "photos"))
+        self.faults = 0
+        self.raw_dps: dict[str, dict[str, Any]] = {}
+        self.local = LocalBox(hass, self.device_id, self._local_key)
 
     # ------------------------------------------------------------------ setup
     @property
@@ -108,6 +127,7 @@ class LitterTracker:
         self.visits = data.get("visits", [])
         self.last_clean = data.get("last_clean")
         self.scale_suspect = data.get("scale_suspect", False)
+        self.raw_dps = data.get("raw_dps", {})
         await self.hass.async_add_executor_job(
             lambda: self.photo_dir.mkdir(parents=True, exist_ok=True)
         )
@@ -118,6 +138,7 @@ class LitterTracker:
             "visits": self.visits[-MAX_VISITS:],
             "last_clean": self.last_clean,
             "scale_suspect": self.scale_suspect,
+            "raw_dps": self.raw_dps,
         }
 
     def _save(self) -> None:
@@ -156,6 +177,10 @@ class LitterTracker:
             _on_device_report._kedi_kumu = True  # type: ignore[attr-defined]
             manager._on_device_report = _on_device_report
             self._hooked_manager = manager
+            device = manager.device_map.get(device_id)
+            fault = getattr(device, "status", {}).get("fault") if device else None
+            if isinstance(fault, int):
+                self.faults = fault
             _LOGGER.info("Attached to Tuya device %s", device_id)
             return
 
@@ -191,6 +216,11 @@ class LitterTracker:
             via_device_id=self.tuya_registry_device_id(),
         )
 
+    def _local_key(self) -> str | None:
+        manager = self._hooked_manager
+        device = manager.device_map.get(self.device_id) if manager else None
+        return getattr(device, "local_key", None) or None
+
     @property
     def hooked(self) -> bool:
         return self._hooked_manager is not None
@@ -207,7 +237,17 @@ class LitterTracker:
             dp = item.get("dpId")
             value = item.get("value")
             t = item.get("t")
-            if dp == DP_STATUS and isinstance(value, str):
+            if dp not in SCHEMA_DPS and dp != DP_RECORD:
+                self.raw_dps[str(dp)] = {"value": value, "t": _ms_to_iso(t)}
+                self.local.dps.pop(str(dp), None)  # pushed value is newer
+                self._save()
+                changed = True
+            elif dp == 1 and isinstance(value, bool):
+                self.local.dps["1"] = value
+                changed = True
+            if dp == DP_FAULT and isinstance(value, int):
+                changed |= self._on_faults(value)
+            elif dp == DP_STATUS and isinstance(value, str):
                 new = value if value in BOX_STATES else "other"
                 if new != self.status:
                     self.status = new
@@ -222,6 +262,104 @@ class LitterTracker:
                 changed |= self._on_record(rec.kind, rec.value, t)
         if changed:
             self._notify_change()
+
+    def fault_list(self) -> list[str]:
+        return [label for bit, label in enumerate(FAULT_LABELS) if self.faults & (1 << bit)]
+
+    def _on_faults(self, value: int) -> bool:
+        if value == self.faults:
+            return False
+        before = set(self.fault_list())
+        self.faults = value
+        after = set(self.fault_list())
+        for label in after - before:
+            self.hass.async_create_task(self._async_notify_fault(label, True))
+        for label in before - after:
+            self.hass.async_create_task(self._async_notify_fault(label, False))
+        return True
+
+    async def _async_notify_fault(self, label: str, active: bool) -> None:
+        tag = f"kedi_kumu_fault_{label}"
+        for service in self.notify_services:
+            data = (
+                {"title": "🐾 Kum kabı", "message": FAULT_MESSAGES.get(label, label), "data": {"tag": tag, "group": "kedi_kumu"}}
+                if active
+                else {"message": "clear_notification", "data": {"tag": tag}}
+            )
+            try:
+                await self.hass.services.async_call("notify", service, data, blocking=False)
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("Notification via %s failed: %s", service, err)
+
+    # ------------------------------------------------------------ commands
+    async def async_cloud_command(self, code: str, value: Any) -> None:
+        manager = self._hooked_manager
+        if manager is None:
+            raise ValueError("not_connected")
+        await self.hass.async_add_executor_job(
+            manager.send_commands, self.device_id, [{"code": code, "value": value}]
+        )
+
+    def _busy(self) -> bool:
+        return self.current is not None or self.status in ("cat_in", "cat_near", "clean", "smooth")
+
+    async def _async_local_set(self, dp: int, value: Any) -> None:
+        try:
+            await self.local.async_set(dp, value)
+        except LocalError as err:
+            raise ValueError(f"local: {err}") from err
+        if isinstance(value, str):
+            self.raw_dps[str(dp)] = {"value": value, "t": dt_util.utcnow().isoformat()}
+            self.local.dps.pop(str(dp), None)
+            self._save()
+
+    async def async_command(self, action: str, dp: int | None = None, value: Any = None) -> dict:
+        if action == "sterilize":
+            if self._busy():
+                raise ValueError("box_busy")
+            await self.async_cloud_command("switch", True)
+            self.local.dps["1"] = True
+        elif action == "stop_sterilize":
+            await self.async_cloud_command("switch", False)
+            self.local.dps["1"] = False
+        elif action == "level":
+            if self._busy():
+                raise ValueError("box_busy")
+            await self._async_local_set(DP_LEVEL, True)
+        elif action == "child_lock":
+            await self._async_local_set(DP_CHILD_LOCK, bool(value))
+        elif action == "dnd":
+            if not isinstance(value, dict):
+                raise ValueError("value must be {start, end, enabled}")
+            await self._async_local_set(DP_DND, encode_dnd(value["start"], value["end"], bool(value.get("enabled"))))
+        elif action == "clean_schedule":
+            if not isinstance(value, list):
+                raise ValueError("value must be a list")
+            await self._async_local_set(DP_CLEAN_SCHEDULE, encode_clean_schedule(value))
+        elif action == "sterilize_schedule":
+            if not isinstance(value, list):
+                raise ValueError("value must be a list")
+            await self._async_local_set(DP_STERILIZE_SCHEDULE, encode_sterilize_schedule(value))
+        elif action == "sleep":
+            await self.async_cloud_command("status", "sleep")
+        elif action == "wake":
+            await self.async_cloud_command("status", "standby")
+        elif action == "set_dp":
+            if dp is None:
+                raise ValueError("dp_required")
+            await self._async_local_set(dp, value)
+        else:
+            raise ValueError("unknown_action")
+        self._notify_change()
+        return self.local.info()
+
+    async def async_local_status(self) -> dict:
+        try:
+            await self.local.async_status()
+        except LocalError as err:
+            _LOGGER.debug("Local status failed: %s", err)
+        self._notify_change()
+        return self.local.info()
 
     def _on_record(self, kind: int, value: int, t: int | None) -> bool:
         if kind == REC_WEIGHT:
@@ -462,6 +600,10 @@ class LitterTracker:
             "hooked": self.hooked,
             "controls": self.controls(),
             "notify": bool(self.notify_services),
+            "faults": self.fault_list(),
+            "local": self.local.info(),
+            "raw_dps": self.raw_dps,
+            "settings": decode_settings(self.local.dps, self.raw_dps),
         }
 
     # ------------------------------------------------------------ changes

@@ -26,8 +26,21 @@ URL_PHOTOS = f"{URL_BASE}/photos"
 DP_TIMES_DAY = 7
 DP_DURATION_DAY = 8
 DP_MANUAL_CLEAN = 9
+DP_LIGHT = 16
+DP_FAULT = 22
 DP_STATUS = 24
 DP_RECORD = 104
+SCHEMA_DPS = {1, 4, 5, 6, 7, 8, 9, 16, 22, 23, 24}
+
+# DP 22 bitmap, in bit order
+FAULT_LABELS = ["motor_fault", "g_sensor_fault", "full_fault", "box_out", "filter_fault"]
+FAULT_MESSAGES = {
+    "motor_fault": "Kum kabında motor arızası var.",
+    "g_sensor_fault": "Kum kabının ağırlık sensöründe arıza var.",
+    "full_fault": "Atık poşeti doldu, değiştirme zamanı.",
+    "box_out": "Atık haznesi yerinde değil.",
+    "filter_fault": "Kum kabının filtresinde sorun var.",
+}
 
 # Box states reported on DP 24 (plus a few the Tuya integration filters out)
 BOX_STATES = [
@@ -36,6 +49,7 @@ BOX_STATES = [
     "cat_in",
     "cat_out",
     "clean",
+    "smooth",
     "sleep",
     "uv",
     "other",

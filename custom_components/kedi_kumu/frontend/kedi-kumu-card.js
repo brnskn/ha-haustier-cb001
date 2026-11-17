@@ -7,9 +7,18 @@ const KK_STATUS = {
   cat_in: { text: "Kedi içeride", icon: "mdi:cat", tone: "busy" },
   cat_out: { text: "Kedi çıktı", icon: "mdi:exit-run", tone: "warn" },
   clean: { text: "Temizleniyor", icon: "mdi:rotate-3d-variant", tone: "info" },
+  smooth: { text: "Kum düzleniyor", icon: "mdi:wave", tone: "info" },
   sleep: { text: "Uyku", icon: "mdi:sleep", tone: "muted" },
-  uv: { text: "UV", icon: "mdi:white-balance-sunny", tone: "info" },
+  uv: { text: "Sterilize ediliyor", icon: "mdi:shield-sun-outline", tone: "info" },
   other: { text: "Bilinmiyor", icon: "mdi:help-circle-outline", tone: "muted" },
+};
+
+const KK_FAULTS = {
+  full_fault: { icon: "mdi:delete-alert", text: "Atık poşeti dolu, değiştirme zamanı" },
+  box_out: { icon: "mdi:archive-alert", text: "Atık haznesi yerinde değil" },
+  motor_fault: { icon: "mdi:engine-off", text: "Motor arızası" },
+  g_sensor_fault: { icon: "mdi:scale-off", text: "Ağırlık sensörü arızası" },
+  filter_fault: { icon: "mdi:air-filter", text: "Filtrede sorun var" },
 };
 
 const KK_COLORS = ["#f4a261", "#2a9d8f", "#e76f51", "#8e7dbe", "#e9c46a", "#4ea8de", "#d16ba5", "#7a8b99"];
@@ -292,6 +301,7 @@ class KediKumuCard extends HTMLElement {
       ${d.cats.length ? this._renderCats(d) : ""}
       ${this._config.compact ? this._renderCompactFoot(d) : `
       ${this._renderToday(d)}
+      ${this._renderInfo(d)}
       ${this._renderRecent(d)}
       ${this._config.show_controls ? this._renderControls(d) : ""}`}`;
   }
@@ -308,6 +318,7 @@ class KediKumuCard extends HTMLElement {
   _renderHead(d) {
     const cur = d.current;
     let st = KK_STATUS[d.status] || KK_STATUS.other;
+    if (d.settings?.sterilizing && d.status === "standby") st = KK_STATUS.uv;
     let label = st.text;
     let av = "";
     if (cur) {
@@ -333,8 +344,13 @@ class KediKumuCard extends HTMLElement {
     const st = (id) => (id && this._hass.states[id] ? this._hass.states[id].state : null);
     const out = [];
     if (!d.hooked) out.push(`<div class="alert warn"><ha-icon icon="mdi:link-variant-off"></ha-icon><span>Kum kabıyla bağlantı bekleniyor (Tuya)</span></div>`);
-    if (st(c.bag_full) === "on") out.push(`<div class="alert bad"><ha-icon icon="mdi:delete-alert"></ha-icon><span>Çöp poşeti dolu</span></div>`);
-    if (st(c.lid) === "on") out.push(`<div class="alert bad"><ha-icon icon="mdi:archive-alert"></ha-icon><span>Hazne yerinde değil</span></div>`);
+    const faults = new Set(d.faults || []);
+    if (st(c.bag_full) === "on") faults.add("full_fault");
+    if (st(c.lid) === "on") faults.add("box_out");
+    for (const f of faults) {
+      const info = KK_FAULTS[f] || { icon: "mdi:alert", text: f };
+      out.push(`<div class="alert bad"><ha-icon icon="${info.icon}"></ha-icon><span>${info.text}</span></div>`);
+    }
     if (d.scale_suspect)
       out.push(`<div class="alert warn"><ha-icon icon="mdi:scale-unbalanced"></ha-icon><span>Tartı kaymış olabilir: son ağırlık hiçbir kediye uymadı. Fişi çekip takmak düzeltir.</span><button class="link" data-action="reset-scale">Tamam</button></div>`);
     return out.length ? `<div class="alerts">${out.join("")}</div>` : "";
@@ -449,17 +465,20 @@ class KediKumuCard extends HTMLElement {
   _renderControls(d) {
     const c = d.controls || {};
     const s = (id) => (id ? this._hass.states[id] : null);
-    const busy = !!d.current || d.status === "cat_in" || d.status === "clean";
+    const busy = !!d.current || ["cat_in", "cat_near", "clean", "smooth"].includes(d.status);
     const light = s(c.light);
     const auto = s(c.auto_clean);
+    const ster = !!d.settings?.sterilizing || d.status === "uv";
     const btn = (action, icon, label, on, disabled) =>
       `<button class="ctl ${on ? "on" : ""}" data-action="${action}" ${disabled ? "disabled" : ""}><ha-icon icon="${icon}"></ha-icon><span>${label}</span></button>`;
     return `
       <div class="controls">
         ${c.clean ? btn("clean", "mdi:broom", d.status === "clean" ? "Temizleniyor" : "Temizle", d.status === "clean", busy) : ""}
-        ${light ? btn("light", "mdi:lightbulb", "Işık", light.state === "on", false) : ""}
+        ${d.hooked ? btn("level", "mdi:wave", d.status === "smooth" ? "Düzleniyor" : "Kumu düzelt", d.status === "smooth", busy) : ""}
+        ${d.hooked ? btn(ster ? "stop-sterilize" : "sterilize", "mdi:shield-sun-outline", ster ? "Sterilizasyonu durdur" : "Sterilize", ster, !ster && busy) : ""}
+        ${light ? btn("light", "mdi:lightbulb", "Tambur ışığı", light.state === "on", false) : ""}
         ${auto ? btn("auto", "mdi:autorenew", "Oto temizlik", auto.state === "on", false) : ""}
-        <button class="ctl" data-action="history"><ha-icon icon="mdi:history"></ha-icon><span>Geçmiş</span></button>
+        <button class="ctl" data-action="settings"><ha-icon icon="mdi:cog"></ha-icon><span>Ayarlar</span></button>
       </div>`;
   }
 
@@ -504,6 +523,49 @@ class KediKumuCard extends HTMLElement {
         return this._toast("Temizlik başlatıldı");
       case "light":
         return this._hass.callService("light", "toggle", { entity_id: c.light });
+      case "level":
+        return this._ws({ type: "kedi_kumu/command", action: "level" }, "Kum düzeltiliyor");
+      case "stop-sterilize":
+        return this._ws({ type: "kedi_kumu/command", action: "stop_sterilize" }, "Sterilizasyon durduruldu");
+      case "settings":
+        return this._openSettings();
+      case "toggle-lock":
+        return this._ws({ type: "kedi_kumu/command", action: "child_lock", value: el.checked }, el.checked ? "Çocuk kilidi açıldı" : "Çocuk kilidi kapandı");
+      case "save-dnd": {
+        const q = (sel) => this._dlg.querySelector(sel);
+        return this._ws({ type: "kedi_kumu/command", action: "dnd", value: { enabled: q("#dnd-on").checked, start: q("#dnd-start").value, end: q("#dnd-end").value } }, "Rahatsız etme kaydedildi");
+      }
+      case "add-clean":
+        this._readSchedules();
+        this._sched.clean.push({ time: "04:00", enabled: true });
+        return this._renderSchedules();
+      case "del-clean":
+        this._readSchedules();
+        this._sched.clean.splice(+el.dataset.i, 1);
+        return this._renderSchedules();
+      case "save-clean":
+        this._readSchedules();
+        return this._ws({ type: "kedi_kumu/command", action: "clean_schedule", value: this._sched.clean }, "Planlı temizlik kaydedildi");
+      case "add-ster":
+        this._readSchedules();
+        this._sched.ster.push({ time: "02:00", minutes: 5, enabled: true, flags: 0 });
+        return this._renderSchedules();
+      case "del-ster":
+        this._readSchedules();
+        this._sched.ster.splice(+el.dataset.i, 1);
+        return this._renderSchedules();
+      case "save-ster":
+        this._readSchedules();
+        return this._ws({ type: "kedi_kumu/command", action: "sterilize_schedule", value: this._sched.ster }, "Planlı sterilizasyon kaydedildi");
+      case "save-delay": {
+        const v = parseInt(this._dlg.querySelector("#delay").value, 10);
+        if (!isFinite(v) || v < 0 || v > 600) return this._toast("Gecikme 0–600 sn olmalı", true);
+        await this._hass.callService("number", "set_value", { entity_id: c.clean_delay, value: v });
+        return this._toast("Temizlik gecikmesi kaydedildi");
+      }
+      case "sterilize":
+        if (!confirm("UV sterilizasyon başlatılsın mı? Bu sırada kum kabında kedi olmamalı.")) return;
+        return this._ws({ type: "kedi_kumu/command", action: "sterilize" }, "Sterilizasyon başlatıldı");
       case "auto":
         return this._hass.callService("switch", "toggle", { entity_id: c.auto_clean });
       case "pick-color": {
@@ -526,6 +588,79 @@ class KediKumuCard extends HTMLElement {
         return this._closeDialog();
       }
     }
+  }
+
+  // ------------------------------------------------------------ settings
+  _renderInfo(d) {
+    const st = d.settings || {};
+    const chips = [];
+    if (st.deodorizer_days != null)
+      chips.push(`<span class="chip-i ${st.deodorizer_days <= 3 ? "warn" : ""}"><ha-icon icon="mdi:spray"></ha-icon>Koku giderici ${st.deodorizer_days} gün</span>`);
+    if (st.dnd?.enabled) chips.push(`<span class="chip-i"><ha-icon icon="mdi:sleep"></ha-icon>Rahatsız etme ${st.dnd.start}–${st.dnd.end}</span>`);
+    if (st.child_lock) chips.push(`<span class="chip-i"><ha-icon icon="mdi:lock"></ha-icon>Çocuk kilidi</span>`);
+    const on = (st.clean_schedule || []).filter((e) => e.enabled).map((e) => e.time);
+    if (on.length) chips.push(`<span class="chip-i"><ha-icon icon="mdi:calendar-clock"></ha-icon>Temizlik ${on.join(", ")}</span>`);
+    const ster = (st.sterilize_schedule || []).filter((e) => e.enabled).map((e) => e.time);
+    if (ster.length) chips.push(`<span class="chip-i"><ha-icon icon="mdi:shield-sun-outline"></ha-icon>Sterilizasyon ${ster.join(", ")}</span>`);
+    return chips.length ? `<button class="info-row" data-action="settings">${chips.join("")}</button>` : "";
+  }
+
+  _openSettings() {
+    const d = this._data;
+    const st = d.settings || {};
+    const c = d.controls || {};
+    const delay = c.clean_delay && this._hass.states[c.clean_delay] ? parseInt(this._hass.states[c.clean_delay].state, 10) : null;
+    const dnd = st.dnd || { start: "22:00", end: "07:00", enabled: false };
+    this._sched = {
+      clean: (st.clean_schedule || []).map((e) => ({ ...e })),
+      ster: (st.sterilize_schedule || []).map((e) => ({ ...e })),
+    };
+    const sw = (id, checked, action = "") => `<label class="sw"><input type="checkbox" id="${id}" ${checked ? "checked" : ""} ${action ? `data-action="${action}"` : ""}><span></span></label>`;
+    this._showDialog(
+      `${this._dlgHead("Kum kabı ayarları")}
+      <div class="set-sec">
+        <div class="set-row"><ha-icon icon="mdi:spray"></ha-icon><div class="grow"><b>Koku giderici</b><div class="muted">Kalan süre</div></div>
+          <div class="big ${st.deodorizer_days != null && st.deodorizer_days <= 3 ? "warn" : ""}">${st.deodorizer_days ?? "–"} <small>gün</small></div></div>
+        <div class="set-row"><ha-icon icon="mdi:lock"></ha-icon><div class="grow"><b>Çocuk kilidi</b><div class="muted">Cihazdaki tuşları kilitler</div></div>${sw("lock", st.child_lock, "toggle-lock")}</div>
+        ${delay != null ? `<div class="set-row"><ha-icon icon="mdi:timer-sand"></ha-icon><div class="grow"><b>Temizlik gecikmesi</b><div class="muted">Kedi çıktıktan sonra (sn)</div></div>
+          <input id="delay" class="num" type="number" min="0" max="600" value="${delay}"><button class="mini" data-action="save-delay">Kaydet</button></div>` : ""}
+      </div>
+      <div class="set-sec">
+        <div class="set-row"><ha-icon icon="mdi:sleep"></ha-icon><div class="grow"><b>Rahatsız etme</b><div class="muted">Bu sürede yalnızca elle temizlik yapılır</div></div>${sw("dnd-on", dnd.enabled)}</div>
+        <div class="set-row times"><span>Başlangıç</span><input id="dnd-start" type="time" value="${esc(dnd.start)}"><span>Bitiş</span><input id="dnd-end" type="time" value="${esc(dnd.end)}">
+          <button class="mini" data-action="save-dnd">Kaydet</button></div>
+      </div>
+      <div class="set-sec"><div class="set-title"><ha-icon icon="mdi:calendar-clock"></ha-icon><b>Planlı temizlik</b></div><div id="sched-clean"></div>
+        <div class="set-actions"><button class="mini ghost" data-action="add-clean">+ Saat ekle</button><button class="mini" data-action="save-clean">Kaydet</button></div></div>
+      <div class="set-sec"><div class="set-title"><ha-icon icon="mdi:shield-sun-outline"></ha-icon><b>Planlı sterilizasyon</b></div><div id="sched-ster"></div>
+        <div class="set-actions"><button class="mini ghost" data-action="add-ster">+ Saat ekle</button><button class="mini" data-action="save-ster">Kaydet</button></div></div>
+      ${d.local?.error ? `<div class="note">Kum kabına yerel ağdan ulaşılamadı: ${esc(d.local.error)}</div>` : ""}`,
+      { type: "settings" }
+    );
+    this._renderSchedules();
+  }
+
+  _renderSchedules() {
+    const sw = (cls, i, checked) => `<label class="sw"><input type="checkbox" class="${cls}" data-i="${i}" ${checked ? "checked" : ""}><span></span></label>`;
+    const clean = this._dlg.querySelector("#sched-clean");
+    if (clean)
+      clean.innerHTML = this._sched.clean.length
+        ? this._sched.clean.map((e, i) => `<div class="set-row sched"><input type="time" class="c-time" data-i="${i}" value="${esc(e.time)}"><span class="grow"></span>${sw("c-on", i, e.enabled)}<button class="icon sm" data-action="del-clean" data-i="${i}" aria-label="Sil"><ha-icon icon="mdi:delete-outline"></ha-icon></button></div>`).join("")
+        : `<div class="muted pad">Planlı temizlik yok</div>`;
+    const ster = this._dlg.querySelector("#sched-ster");
+    if (ster)
+      ster.innerHTML = this._sched.ster.length
+        ? this._sched.ster.map((e, i) => `<div class="set-row sched"><input type="time" class="s-time" data-i="${i}" value="${esc(e.time)}"><input type="number" class="s-min num" data-i="${i}" min="1" max="60" value="${e.minutes}"><span class="muted">dk</span><span class="grow"></span>${sw("s-on", i, e.enabled)}<button class="icon sm" data-action="del-ster" data-i="${i}" aria-label="Sil"><ha-icon icon="mdi:delete-outline"></ha-icon></button></div>`).join("")
+        : `<div class="muted pad">Planlı sterilizasyon yok</div>`;
+  }
+
+  _readSchedules() {
+    const all = (sel) => [...this._dlg.querySelectorAll(sel)];
+    all(".c-time").forEach((el) => (this._sched.clean[+el.dataset.i].time = el.value || "00:00"));
+    all(".c-on").forEach((el) => (this._sched.clean[+el.dataset.i].enabled = el.checked));
+    all(".s-time").forEach((el) => (this._sched.ster[+el.dataset.i].time = el.value || "00:00"));
+    all(".s-min").forEach((el) => (this._sched.ster[+el.dataset.i].minutes = Math.min(60, Math.max(1, parseInt(el.value, 10) || 5))));
+    all(".s-on").forEach((el) => (this._sched.ster[+el.dataset.i].enabled = el.checked));
   }
 
   // ------------------------------------------------------------ dialogs
@@ -912,6 +1047,32 @@ button:disabled { opacity: .45; cursor: default; }
 .badge.pending { color: #fff; background: #e9a23b; }
 .compact-foot { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--kk-soft); font-size: .88em; text-align: left; }
 .compact-foot ha-icon { --mdc-icon-size: 18px; color: var(--secondary-text-color); }
+.info-row { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; margin-top: 12px; text-align: left; }
+.chip-i { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; background: var(--kk-soft); font-size: .8em; color: var(--secondary-text-color); }
+.chip-i ha-icon { --mdc-icon-size: 15px; }
+.chip-i.warn { color: #d08a1f; background: color-mix(in srgb, #e9a23b 16%, transparent); }
+.set-sec { padding: 10px 12px; border-radius: 14px; background: var(--kk-soft); margin-top: 10px; display: grid; gap: 8px; }
+.set-row { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.set-row > ha-icon, .set-title ha-icon { --mdc-icon-size: 20px; color: var(--secondary-text-color); }
+.set-row .grow, .grow { flex: 1; min-width: 0; }
+.set-row b, .set-title b { font-weight: 600; font-size: .95em; }
+.set-title { display: flex; align-items: center; gap: 10px; }
+.set-row.times { flex-wrap: wrap; font-size: .88em; color: var(--secondary-text-color); }
+.set-row.sched { padding: 4px 0; border-top: 1px solid var(--kk-line); }
+.set-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.set-sec input[type=time], .set-sec .num { font: inherit; padding: 7px 9px; border-radius: 10px; border: 1px solid var(--kk-line); background: var(--card-background-color, #fff); color: var(--primary-text-color); }
+.set-sec .num { width: 64px; }
+.big { font-size: 1.4em; font-weight: 700; } .big small { font-size: .55em; color: var(--secondary-text-color); } .big.warn { color: #d08a1f; }
+.mini { padding: 7px 14px; border-radius: 999px; background: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 600; font-size: .85em; }
+.mini.ghost { background: transparent; color: var(--primary-color); border: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent); }
+.icon.sm { width: 32px; height: 32px; } .icon.sm ha-icon { --mdc-icon-size: 18px; }
+.pad { padding: 6px 2px; }
+.sw { position: relative; display: inline-block; width: 44px; height: 26px; flex: none; }
+.sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+.sw span { position: absolute; inset: 0; border-radius: 26px; background: var(--kk-line); transition: background .15s; cursor: pointer; }
+.sw span::before { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .15s; }
+.sw input:checked + span { background: var(--primary-color); }
+.sw input:checked + span::before { transform: translateX(18px); }
 .controls { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--kk-line); flex-wrap: wrap; }
 .ctl { flex: 1; min-width: 72px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; background: var(--kk-soft); font-size: .78em; font-weight: 500; }
 .ctl ha-icon { --mdc-icon-size: 22px; color: var(--secondary-text-color); }

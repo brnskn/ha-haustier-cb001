@@ -18,7 +18,7 @@ def _tracker(hass: HomeAssistant):
 
 @callback
 def async_register_websocket(hass: HomeAssistant) -> None:
-    for handler in (ws_data, ws_subscribe, ws_save_cat, ws_delete_cat, ws_assign, ws_delete_visit, ws_reset_scale):
+    for handler in (ws_data, ws_subscribe, ws_save_cat, ws_delete_cat, ws_assign, ws_delete_visit, ws_reset_scale, ws_command, ws_local):
         websocket_api.async_register_command(hass, handler)
 
 
@@ -140,3 +140,42 @@ def ws_reset_scale(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
         return
     tracker.reset_scale_warning()
     connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "kedi_kumu/command",
+        vol.Required("action"): vol.In(
+            ["sterilize", "stop_sterilize", "level", "child_lock", "dnd", "clean_schedule",
+             "sterilize_schedule", "sleep", "wake", "set_dp"]
+        ),
+        vol.Optional("dp"): vol.All(int, vol.Range(min=1, max=255)),
+        vol.Optional("value"): vol.Any(bool, int, str, dict, list),
+    }
+)
+@websocket_api.async_response
+async def ws_command(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    tracker = _tracker(hass)
+    if tracker is None:
+        _not_ready(connection, msg)
+        return
+    if msg["action"] == "set_dp" and not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Ham veri noktası yazmak için yönetici gerekli")
+        return
+    try:
+        result = await tracker.async_command(msg["action"], msg.get("dp"), msg.get("value"))
+    except (ValueError, KeyError, TypeError) as err:
+        connection.send_error(msg["id"], "failed", str(err))
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "kedi_kumu/local"})
+@websocket_api.async_response
+async def ws_local(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Read every data point over the LAN (the key stays inside Home Assistant)."""
+    tracker = _tracker(hass)
+    if tracker is None:
+        _not_ready(connection, msg)
+        return
+    connection.send_result(msg["id"], await tracker.async_local_status())

@@ -101,6 +101,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(
         hass.bus.async_listen("mobile_app_notification_action", tracker.async_handle_notification_action)
     )
+    async def _refresh_local(*_):
+        await tracker.async_local_status()
+
+    entry.async_on_unload(async_track_time_interval(hass, _refresh_local, timedelta(minutes=10)))
+    entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _refresh_local))
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
 

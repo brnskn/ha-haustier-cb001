@@ -37,8 +37,9 @@
           "cat_out": "Cat left",
           "clean": "Cleaning",
           "sleep": "Sleep",
-          "uv": "UV",
-          "other": "Other"
+          "uv": "Sterilizing",
+          "other": "Other",
+          "smooth": "Leveling litter"
         }
       },
       "last_cat": {

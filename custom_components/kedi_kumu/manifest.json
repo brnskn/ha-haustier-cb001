@@ -17,7 +17,9 @@
   "documentation": "https://github.com/brnskn/ha-haustier-cb001",
   "integration_type": "device",
   "iot_class": "cloud_push",
-  "requirements": [],
+  "requirements": [
+    "tinytuya==1.21.1"
+  ],
   "single_config_entry": true,
   "version": "1.0.0",
   "issue_tracker": "https://github.com/brnskn/ha-haustier-cb001/issues"
