@@ -2,7 +2,8 @@
 
 Mapped by toggling each setting in the Tuya app and watching the device:
 
-    DP 1    sterilization running (UV), bool          (in the schema as "switch")
+    DP 1    manual UV sterilization, bool; runs until switched off
+            (in the cloud schema as "switch")
     DP 102  level litter, bool trigger                 (status becomes "smooth")
     DP 103  child lock, bool
     DP 105  do not disturb, raw: start_h start_m end_h end_m enabled

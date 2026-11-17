@@ -233,6 +233,7 @@ These were mapped by toggling each setting in the Tuya app and watching the devi
 
 | DP | Setting | Value |
 | --- | --- | --- |
+| 1 | Manual UV sterilization | bool; runs until switched off (in the cloud schema as `switch`) |
 | 102 | Level litter | bool trigger (state becomes `smooth`) |
 | 103 | Child lock | bool |
 | 105 | Do Not Disturb | raw `start_h start_m end_h end_m enabled` |
