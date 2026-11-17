@@ -14,11 +14,11 @@
   "after_dependencies": [
     "mobile_app"
   ],
-  "documentation": "https://github.com/brnskn/ha-kedi-kumu",
+  "documentation": "https://github.com/brnskn/ha-haustier-cb001",
   "integration_type": "device",
   "iot_class": "cloud_push",
   "requirements": [],
   "single_config_entry": true,
   "version": "1.0.0",
-  "issue_tracker": "https://github.com/brnskn/ha-kedi-kumu/issues"
+  "issue_tracker": "https://github.com/brnskn/ha-haustier-cb001/issues"
 }

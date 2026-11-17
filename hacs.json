@@ -1,6 +1,8 @@
 {
-  "name": "Kedi Kumu (Haustier CB001)",
-  "domains": ["kedi_kumu"],
+  "name": "Haustier CB001 (Kedi Kumu)",
+  "domains": [
+    "kedi_kumu"
+  ],
   "homeassistant": "2026.11.0",
   "render_readme": true
 }

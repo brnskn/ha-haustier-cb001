@@ -2,7 +2,7 @@
   <img src="custom_components/kedi_kumu/brand/icon@2x.png" width="120" alt="Kedi Kumu icon">
 </p>
 
-# Kedi Kumu: Haustier CB001 cat litter box for Home Assistant
+# Haustier CB001 cat litter box for Home Assistant (Kedi Kumu)
 
 Custom Home Assistant integration and Lovelace card for the **Haustier CB001** smart cat litter box (Tuya based). It recognizes **which cat** used the box from its weight, keeps a visit history per cat, tracks each cat's weight over time and shows everything on a dedicated dashboard card with cat profiles and photos.
 
@@ -69,8 +69,8 @@ Tested device: **Haustier CB001**, Tuya category `msp`, product key `nietgqxmysg
 
 1. Open HACS in Home Assistant.
 2. Open the three-dot menu and choose **Custom repositories**.
-3. Add `https://github.com/brnskn/ha-kedi-kumu` with category **Integration**.
-4. Install **Kedi Kumu (Haustier CB001)**.
+3. Add `https://github.com/brnskn/ha-haustier-cb001` with category **Integration**.
+4. Install **Haustier CB001 (Kedi Kumu)**.
 5. Restart Home Assistant.
 
 ### Manual
@@ -84,6 +84,9 @@ Copy `custom_components/kedi_kumu` into your Home Assistant config directory:
 Then restart Home Assistant.
 
 ## Configuration
+
+The integration's domain is `kedi_kumu` and it appears as **Kedi Kumu** in Home Assistant.
+
 
 ```text
 Settings -> Devices & services -> Add integration -> Kedi Kumu
@@ -253,8 +256,8 @@ python3 -m unittest discover -s tests -v
 Full integration check against a real Home Assistant install. It covers visit assembly from captured Tuya messages, learning, auto recognition, phone answers, the scale warning, photo upload and persistence. Run it inside the Home Assistant container:
 
 ```bash
-docker cp . homeassistant:/tmp/kedi_kumu_repo
-docker exec homeassistant sh -c "touch /tmp/kedi_kumu_repo/custom_components/__init__.py && python3 /tmp/kedi_kumu_repo/tests/ha_container_check.py /tmp/kedi_kumu_repo"
+docker cp . homeassistant:/tmp/ha-haustier-cb001
+docker exec homeassistant sh -c "touch /tmp/ha-haustier-cb001/custom_components/__init__.py && python3 /tmp/ha-haustier-cb001/tests/ha_container_check.py /tmp/ha-haustier-cb001"
 ```
 
 Quick checks:
