@@ -319,9 +319,12 @@ class KediKumuCard extends HTMLElement {
     return `
       <div class="head">
         <div class="title"><ha-icon icon="mdi:cat"></ha-icon><span>${esc(this._config.title)}</span></div>
-        <div class="status ${st.tone}">${av || `<ha-icon icon="${st.icon}"></ha-icon>`}<span>${label}</span>${
-          cur ? `<small>${kg(cur.weight)} kg</small>` : ""
-        }</div>
+        <div class="head-r">
+          <div class="status ${st.tone}">${av || `<ha-icon icon="${st.icon}"></ha-icon>`}<span>${label}</span>${
+            cur ? `<small>${kg(cur.weight)} kg</small>` : ""
+          }</div>
+          ${d.cats.length ? `<button class="icon add-cat" data-action="add-cat" title="Kedi ekle" aria-label="Kedi ekle"><ha-icon icon="mdi:plus"></ha-icon></button>` : ""}
+        </div>
       </div>`;
   }
 
@@ -399,7 +402,7 @@ class KediKumuCard extends HTMLElement {
         </button>`;
       })
       .join("");
-    return `<div class="section cats">${tiles}<button class="cat add" data-action="add-cat"><div class="av lg addav"><ha-icon icon="mdi:plus"></ha-icon></div><div class="cat-name">Kedi ekle</div></button></div>`;
+    return `<div class="section cats">${tiles}</div>`;
   }
 
   _renderToday(d) {
@@ -821,6 +824,9 @@ button:disabled { opacity: .45; cursor: default; }
 .center { text-align: center; padding: 12px 0; }
 .loading, .empty { display: flex; gap: 12px; align-items: center; color: var(--secondary-text-color); padding: 8px 4px; }
 .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.head-r { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.add-cat { width: 34px; height: 34px; flex: none; color: var(--secondary-text-color); transition: background .15s, color .15s; }
+.add-cat:hover { background: color-mix(in srgb, var(--primary-color) 16%, transparent); color: var(--primary-color); }
 .title { display: flex; align-items: center; gap: 10px; font-size: 1.15em; font-weight: 600; }
 .title ha-icon { color: var(--primary-color); }
 .status { display: flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; border-radius: 999px; font-size: .88em; font-weight: 500; background: var(--kk-soft); white-space: nowrap; }
@@ -886,8 +892,6 @@ button:disabled { opacity: .45; cursor: default; }
 .learn.ok { color: #2e9e6a; } .learn ha-icon { --mdc-icon-size: 14px; }
 .learn .bar { width: 34px; height: 4px; border-radius: 4px; background: var(--kk-line); overflow: hidden; }
 .learn .bar i { display: block; height: 100%; background: var(--c); }
-.cat.add { background: none; border: 2px dashed var(--kk-line); justify-content: center; color: var(--secondary-text-color); }
-.addav { --c: #9e9e9e; box-shadow: none; background: var(--kk-soft); color: var(--secondary-text-color); }
 .tl { position: relative; height: 46px; }
 .tl-track { position: absolute; left: 0; right: 0; top: 14px; height: 8px; border-radius: 8px; background: var(--kk-soft); }
 .tl-now { position: absolute; top: 9px; width: 2px; height: 18px; margin-left: -1px; border-radius: 2px; background: var(--primary-color); opacity: .6; }
