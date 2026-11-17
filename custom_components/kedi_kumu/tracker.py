@@ -603,8 +603,11 @@ class LitterTracker:
             "faults": self.fault_list(),
             "local": self.local.info(),
             "raw_dps": self.raw_dps,
-            "settings": decode_settings(self.local.dps, self.raw_dps),
+            "settings": self.settings(),
         }
+
+    def settings(self) -> dict:
+        return decode_settings(self.local.dps, self.raw_dps)
 
     # ------------------------------------------------------------ changes
     def subscribe(self, cb: Callable[[], None]) -> Callable[[], None]:

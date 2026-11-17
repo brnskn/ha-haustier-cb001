@@ -6,7 +6,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfMass
+from homeassistant.const import UnitOfMass, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -33,6 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         PendingVisits(tracker),
         VisitsToday(tracker),
         LastClean(tracker),
+        DeodorizerDays(tracker),
     ]
     for cat in tracker.cats:
         entities.extend(cat_entities(cat["id"]))
@@ -148,6 +149,22 @@ class LastClean(KediKumuEntity, SensorEntity):
     @property
     def native_value(self):
         return _ts(self.tracker.last_clean)
+
+
+class DeodorizerDays(KediKumuEntity, SensorEntity):
+    """Days left on the deodorizer block (DP 109, read over the LAN)."""
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.DAYS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:spray"
+
+    def __init__(self, tracker: LitterTracker) -> None:
+        super().__init__(tracker, "deodorizer")
+
+    @property
+    def native_value(self) -> int | None:
+        return self.tracker.settings().get("deodorizer_days")
 
 
 # ---------------------------------------------------------------- per cat

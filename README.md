@@ -134,6 +134,7 @@ Box device (**Kedi Kumu**):
 | `sensor.kedi_kumu_bekleyen_etiket` | Number of visits waiting for a label. |
 | `sensor.kedi_kumu_bugunku_ziyaret` | Visits today. |
 | `sensor.kedi_kumu_son_temizlik` | Last finished cleaning cycle. |
+| `sensor.kedi_kumu_koku_giderici` | Deodorizer days left (read over the LAN). Handy for a "replace soon" automation. |
 | `binary_sensor.kedi_kumu_kedi_iceride` | A cat is in the box. Attributes: cat, weight. |
 | `binary_sensor.kedi_kumu_tarti_supheli` | Scale suspect: a weight matched no cat. |
 

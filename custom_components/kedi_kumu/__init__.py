@@ -12,11 +12,12 @@ import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_time_change, async_track_time_interval
+from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN, URL_CARD, URL_PHOTOS, VERSION
@@ -92,9 +93,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(
         async_track_time_interval(hass, tracker.async_ensure_hook, timedelta(seconds=30))
     )
-    entry.async_on_unload(
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, tracker.async_ensure_hook)
-    )
+    entry.async_on_unload(async_at_started(hass, tracker.async_ensure_hook))
     entry.async_on_unload(
         async_track_time_change(hass, tracker.async_day_changed, hour=0, minute=0, second=5)
     )
@@ -105,7 +104,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await tracker.async_local_status()
 
     entry.async_on_unload(async_track_time_interval(hass, _refresh_local, timedelta(minutes=10)))
-    entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _refresh_local))
+    # Runs right away on a reload (e.g. after changing options), or once HA has started.
+    entry.async_on_unload(async_at_started(hass, _refresh_local))
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
 

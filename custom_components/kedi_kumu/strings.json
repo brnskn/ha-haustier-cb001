@@ -62,6 +62,9 @@
       },
       "cat_visits_today": {
         "name": "Visits today"
+      },
+      "deodorizer": {
+        "name": "Deodorizer"
       }
     },
     "binary_sensor": {
