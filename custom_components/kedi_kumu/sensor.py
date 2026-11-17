@@ -6,7 +6,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfMass, UnitOfTime
+from homeassistant.const import PERCENTAGE, UnitOfMass, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -34,6 +34,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         VisitsToday(tracker),
         LastClean(tracker),
         DeodorizerDays(tracker),
+        WasteBinLevel(tracker),
     ]
     for cat in tracker.cats:
         entities.extend(cat_entities(cat["id"]))
@@ -165,6 +166,32 @@ class DeodorizerDays(KediKumuEntity, SensorEntity):
     @property
     def native_value(self) -> int | None:
         return self.tracker.settings().get("deodorizer_days")
+
+
+class WasteBinLevel(KediKumuEntity, SensorEntity):
+    """Estimated waste bag fill level (cleaning cycles since the last change)."""
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:delete-variant"
+
+    def __init__(self, tracker: LitterTracker) -> None:
+        super().__init__(tracker, "waste_bin")
+
+    @property
+    def native_value(self) -> int:
+        return self.tracker.bin.percent
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        info = self.tracker.bin.info()
+        return {
+            "temizlik_sayisi": info["count"],
+            "kapasite": info["capacity"],
+            "kapasite_ogrenildi": info["learned"],
+            "son_degisim": info["since"],
+            "dolu": info["full"],
+        }
 
 
 # ---------------------------------------------------------------- per cat

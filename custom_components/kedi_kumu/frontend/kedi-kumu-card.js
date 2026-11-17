@@ -301,6 +301,7 @@ class KediKumuCard extends HTMLElement {
       ${d.cats.length ? this._renderCats(d) : ""}
       ${this._config.compact ? this._renderCompactFoot(d) : `
       ${this._renderToday(d)}
+      ${this._renderGauges(d)}
       ${this._renderInfo(d)}
       ${this._renderRecent(d)}
       ${this._config.show_controls ? this._renderControls(d) : ""}`}`;
@@ -523,6 +524,9 @@ class KediKumuCard extends HTMLElement {
         return this._toast("Temizlik başlatıldı");
       case "light":
         return this._hass.callService("light", "toggle", { entity_id: c.light });
+      case "reset-bin":
+        if (!confirm("Atık poşetini değiştirdin mi? Sayaç sıfırlanacak.")) return;
+        return this._ws({ type: "kedi_kumu/command", action: "reset_bin" }, "Atık haznesi sayacı sıfırlandı");
       case "level":
         return this._ws({ type: "kedi_kumu/command", action: "level" }, "Kum düzeltiliyor");
       case "stop-sterilize":
@@ -594,8 +598,6 @@ class KediKumuCard extends HTMLElement {
   _renderInfo(d) {
     const st = d.settings || {};
     const chips = [];
-    if (st.deodorizer_days != null)
-      chips.push(`<span class="chip-i ${st.deodorizer_days <= 3 ? "warn" : ""}"><ha-icon icon="mdi:spray"></ha-icon>Koku giderici ${st.deodorizer_days} gün</span>`);
     if (st.dnd?.enabled) chips.push(`<span class="chip-i"><ha-icon icon="mdi:sleep"></ha-icon>Rahatsız etme ${st.dnd.start}–${st.dnd.end}</span>`);
     if (st.child_lock) chips.push(`<span class="chip-i"><ha-icon icon="mdi:lock"></ha-icon>Çocuk kilidi</span>`);
     const on = (st.clean_schedule || []).filter((e) => e.enabled).map((e) => e.time);
@@ -603,6 +605,32 @@ class KediKumuCard extends HTMLElement {
     const ster = (st.sterilize_schedule || []).filter((e) => e.enabled).map((e) => e.time);
     if (ster.length) chips.push(`<span class="chip-i"><ha-icon icon="mdi:shield-sun-outline"></ha-icon>Sterilizasyon ${ster.join(", ")}</span>`);
     return chips.length ? `<button class="info-row" data-action="settings">${chips.join("")}</button>` : "";
+  }
+
+  _renderGauges(d) {
+    const w = d.waste;
+    const days = d.settings?.deodorizer_days;
+    if (!w && days == null) return "";
+    const out = [];
+    if (w) {
+      const tone = w.percent >= 90 ? "bad" : w.percent >= 75 ? "warn" : "ok";
+      const since = w.since ? new Date(w.since).toLocaleDateString("tr-TR", { day: "numeric", month: "short" }) : null;
+      out.push(`<div class="gauge">
+        <div class="g-top"><ha-icon icon="mdi:delete-variant"></ha-icon><span>Atık haznesi</span><b>${w.full ? "Dolu" : `~%${w.percent}`}</b></div>
+        <div class="g-bar ${tone}"><i style="width:${Math.min(100, w.percent)}%"></i></div>
+        <div class="g-foot"><span class="muted">${w.count} temizlik${since ? ` · ${since} beri` : ""}${w.learned ? "" : " · tahmini"}</span>
+          <button class="link" data-action="reset-bin">Poşeti değiştirdim</button></div>
+      </div>`);
+    }
+    if (days != null) {
+      const pct = Math.max(0, Math.min(100, (days / 30) * 100));
+      out.push(`<button class="gauge" data-action="settings">
+        <div class="g-top"><ha-icon icon="mdi:spray"></ha-icon><span>Koku giderici</span><b>${days} gün</b></div>
+        <div class="g-bar ${days <= 3 ? "warn" : "ok"}"><i style="width:${pct}%"></i></div>
+        <div class="g-foot"><span class="muted">kalan süre</span></div>
+      </button>`);
+    }
+    return `<div class="gauges">${out.join("")}</div>`;
   }
 
   _openSettings() {
@@ -1047,6 +1075,15 @@ button:disabled { opacity: .45; cursor: default; }
 .badge.pending { color: #fff; background: #e9a23b; }
 .compact-foot { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--kk-soft); font-size: .88em; text-align: left; }
 .compact-foot ha-icon { --mdc-icon-size: 18px; color: var(--secondary-text-color); }
+.gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.gauge { display: grid; gap: 6px; padding: 12px; border-radius: 14px; background: var(--kk-soft); text-align: left; width: 100%; box-sizing: border-box; }
+.g-top { display: flex; align-items: center; gap: 8px; font-size: .88em; }
+.g-top span { flex: 1; } .g-top ha-icon { --mdc-icon-size: 18px; color: var(--secondary-text-color); }
+.g-bar { height: 6px; border-radius: 6px; background: var(--kk-line); overflow: hidden; }
+.g-bar i { display: block; height: 100%; border-radius: 6px; background: #2e9e6a; }
+.g-bar.warn i { background: #e9a23b; } .g-bar.bad i { background: #e5484d; }
+.g-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.g-foot .link { font-size: .8em; }
 .info-row { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; margin-top: 12px; text-align: left; }
 .chip-i { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; background: var(--kk-soft); font-size: .8em; color: var(--secondary-text-color); }
 .chip-i ha-icon { --mdc-icon-size: 15px; }
@@ -1132,7 +1169,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); backdrop-filter: blur(2px); }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; padding: 10px 16px; border-radius: 999px; background: #2b2b2b; color: #fff; font-size: .9em; transition: all .2s; z-index: 10; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.bad { background: #b3261e; }
-@media (max-width: 420px) { .stats { grid-template-columns: repeat(2, 1fr); } .cats { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); } }
+@media (max-width: 420px) { .gauges { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } .cats { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); } }
 `;
 
 if (!customElements.get("kedi-kumu-card")) {

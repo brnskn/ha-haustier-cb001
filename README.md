@@ -134,6 +134,7 @@ Box device (**Kedi Kumu**):
 | `sensor.kedi_kumu_bekleyen_etiket` | Number of visits waiting for a label. |
 | `sensor.kedi_kumu_bugunku_ziyaret` | Visits today. |
 | `sensor.kedi_kumu_son_temizlik` | Last finished cleaning cycle. |
+| `sensor.kedi_kumu_atik_haznesi` | Estimated waste bag fill (%). Counts cleaning cycles since the last bag change; learns how many cycles fill a bag from the box's "bag full" reports (starts with 40). The drawer out for 30 s or more counts as a bag change; `kedi_kumu.reset_waste_bin` resets it by hand. |
 | `sensor.kedi_kumu_koku_giderici` | Deodorizer days left (read over the LAN). Handy for a "replace soon" automation. |
 | `binary_sensor.kedi_kumu_kedi_iceride` | A cat is in the box. Attributes: cat, weight. |
 | `binary_sensor.kedi_kumu_tarti_supheli` | Scale suspect: a weight matched no cat. |
@@ -152,6 +153,7 @@ Each cat gets its own device. Entity ids are generated from the cat's name and t
 | --- | --- |
 | `kedi_kumu.add_visit` | Add a visit by hand (`weight_kg`, optional `start`, `duration`). |
 | `kedi_kumu.reset_scale_warning` | Clear the scale suspect warning. |
+| `kedi_kumu.reset_waste_bin` | The bag was changed: reset the waste bin counter. |
 
 ## Events
 

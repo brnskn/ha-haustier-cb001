@@ -74,8 +74,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def reset_scale(call: ServiceCall) -> None:
         _tracker().reset_scale_warning()
 
+    async def reset_bin(call: ServiceCall) -> None:
+        _tracker().reset_bin()
+
     hass.services.async_register(DOMAIN, "add_visit", add_visit, schema=ADD_VISIT_SCHEMA)
     hass.services.async_register(DOMAIN, "reset_scale_warning", reset_scale)
+    hass.services.async_register(DOMAIN, "reset_waste_bin", reset_bin)
     return True
 
 

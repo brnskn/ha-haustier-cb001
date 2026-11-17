@@ -65,6 +65,9 @@
       },
       "deodorizer": {
         "name": "Koku giderici"
+      },
+      "waste_bin": {
+        "name": "Atık haznesi"
       }
     },
     "binary_sensor": {
@@ -98,6 +101,10 @@
     "reset_scale_warning": {
       "name": "Tartı uyarısını sıfırla",
       "description": "Tartı şüpheli uyarısını kapatır."
+    },
+    "reset_waste_bin": {
+      "name": "Poşet değişti",
+      "description": "Atık haznesi sayacını sıfırlar."
     }
   }
 }

@@ -52,6 +52,7 @@ from .const import (
     VISIT_TIMEOUT,
 )
 from .local import LocalBox, LocalError
+from .waste import WasteBin
 from .settings import (
     DP_CHILD_LOCK,
     DP_CLEAN_SCHEDULE,
@@ -111,6 +112,7 @@ class LitterTracker:
         self.faults = 0
         self.raw_dps: dict[str, dict[str, Any]] = {}
         self.local = LocalBox(hass, self.device_id, self._local_key)
+        self.bin = WasteBin()
 
     # ------------------------------------------------------------------ setup
     @property
@@ -128,6 +130,7 @@ class LitterTracker:
         self.last_clean = data.get("last_clean")
         self.scale_suspect = data.get("scale_suspect", False)
         self.raw_dps = data.get("raw_dps", {})
+        self.bin = WasteBin(data.get("waste_bin"))
         await self.hass.async_add_executor_job(
             lambda: self.photo_dir.mkdir(parents=True, exist_ok=True)
         )
@@ -139,6 +142,7 @@ class LitterTracker:
             "last_clean": self.last_clean,
             "scale_suspect": self.scale_suspect,
             "raw_dps": self.raw_dps,
+            "waste_bin": self.bin.to_dict(),
         }
 
     def _save(self) -> None:
@@ -181,6 +185,7 @@ class LitterTracker:
             fault = getattr(device, "status", {}).get("fault") if device else None
             if isinstance(fault, int):
                 self.faults = fault
+                self.bin.full = "full_fault" in self.fault_list()
             _LOGGER.info("Attached to Tuya device %s", device_id)
             return
 
@@ -272,6 +277,14 @@ class LitterTracker:
         before = set(self.fault_list())
         self.faults = value
         after = set(self.fault_list())
+        now = dt_util.utcnow()
+        self.bin.on_full("full_fault" in after)
+        if "box_out" in after - before:
+            self.bin.on_drawer(True, now)
+        elif "box_out" in before - after and self.bin.on_drawer(False, now):
+            _LOGGER.info("Waste drawer was out long enough: bag counter reset")
+            self.hass.bus.async_fire(f"{DOMAIN}_bag_changed", {"source": "drawer"})
+        self._save()
         for label in after - before:
             self.hass.async_create_task(self._async_notify_fault(label, True))
         for label in before - after:
@@ -340,6 +353,8 @@ class LitterTracker:
             if not isinstance(value, list):
                 raise ValueError("value must be a list")
             await self._async_local_set(DP_STERILIZE_SCHEDULE, encode_sterilize_schedule(value))
+        elif action == "reset_bin":
+            self.reset_bin()
         elif action == "sleep":
             await self.async_cloud_command("status", "sleep")
         elif action == "wake":
@@ -375,6 +390,7 @@ class LitterTracker:
             return True
         if kind == REC_CLEAN_DONE:
             self.last_clean = _ms_to_iso(t)
+            self.bin.on_clean()
             self._save()
             return True
         return False
@@ -604,6 +620,7 @@ class LitterTracker:
             "local": self.local.info(),
             "raw_dps": self.raw_dps,
             "settings": self.settings(),
+            "waste": self.bin.info(),
         }
 
     def settings(self) -> dict:
@@ -790,6 +807,12 @@ class LitterTracker:
         self.visits.sort(key=lambda v: v["start"])
         self._notify_change()
         return visit
+
+    def reset_bin(self) -> None:
+        self.bin.reset(dt_util.utcnow())
+        self.hass.bus.async_fire(f"{DOMAIN}_bag_changed", {"source": "manual"})
+        self._save()
+        self._notify_change()
 
     def reset_scale_warning(self) -> None:
         self.scale_suspect = False

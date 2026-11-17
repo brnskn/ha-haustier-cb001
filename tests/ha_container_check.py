@@ -8,6 +8,7 @@ import base64
 import json
 import sys
 import tempfile
+from datetime import timedelta
 from types import SimpleNamespace
 
 sys.path.insert(0, sys.argv[1] if len(sys.argv) > 1 else ".")
@@ -208,6 +209,26 @@ async def tracker_tests():
         check(False, "non-image rejected")
     except ValueError:
         check(True, "non-image rejected")
+
+    # Waste bag estimate: cleaning cycles, "bag full", drawer out/in
+    tr.bin.reset(dt_util.utcnow())
+    for i in range(12):
+        tr._handle_report([{"dpId": 104, "t": t0 + (200 + i) * 60000, "value": rec(5, 0, 22, i, 0)}])
+    check(tr.bin.count == 12, f"cleaning cycles counted ({tr.bin.count})")
+    tr._handle_report([{"dpId": 22, "t": t0 + 300 * 60000, "value": 4}])  # full_fault
+    check(tr.bin.full and tr.bin.capacity == 12 and tr.bin.percent == 100, "bag full learns capacity")
+    tr._handle_report([{"dpId": 22, "t": t0 + 301 * 60000, "value": 4 | 8}])  # drawer out
+    tr.bin.out_since = (dt_util.utcnow() - timedelta(minutes=2)).isoformat()
+    tr._handle_report([{"dpId": 22, "t": t0 + 302 * 60000, "value": 0}])  # back in, bag ok
+    check(tr.bin.count == 0 and not tr.bin.full, "drawer out 2 min resets the bag counter")
+    check(tr.snapshot()["waste"]["capacity"] == 12, "capacity kept after reset")
+    sent.clear()
+    tr._handle_report([{"dpId": 22, "t": t0 + 303 * 60000, "value": 8}])
+    await hass.async_block_till_done()
+    check(any("haznesi yerinde" in str(x[1].get("message")) for x in sent), "drawer out notification sent")
+    tr._handle_report([{"dpId": 22, "t": t0 + 304 * 60000, "value": 0}])
+    await hass.async_block_till_done()
+    check(tr.bin.count == 0 and any(x[1].get("message") == "clear_notification" for x in sent), "quick peek keeps counter, clears notification")
 
     snap = tr.snapshot()
     json.dumps(snap)

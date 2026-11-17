@@ -20,3 +20,4 @@ add_visit:
           unit_of_measurement: s
           mode: box
 reset_scale_warning:
+reset_waste_bin:

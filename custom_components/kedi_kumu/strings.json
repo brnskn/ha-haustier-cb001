@@ -65,6 +65,9 @@
       },
       "deodorizer": {
         "name": "Deodorizer"
+      },
+      "waste_bin": {
+        "name": "Waste bin"
       }
     },
     "binary_sensor": {
@@ -98,6 +101,10 @@
     "reset_scale_warning": {
       "name": "Reset scale warning",
       "description": "Clears the scale suspect warning."
+    },
+    "reset_waste_bin": {
+      "name": "Bag changed",
+      "description": "Resets the waste bag counter."
     }
   }
 }
