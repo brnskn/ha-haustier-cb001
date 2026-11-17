@@ -1,0 +1,99 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Kedi Kumu",
+        "description": "Takip edilecek Tuya kum kabını seç.",
+        "data": {
+          "tuya_device_id": "Kum kabı"
+        }
+      }
+    },
+    "abort": {
+      "no_devices": "Tuya entegrasyonunda kum kabı bulunamadı.",
+      "already_configured": "Bu kum kabı zaten ekli."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Kedi Kumu ayarları",
+        "description": "Kim kullandı sorusu hangi telefonlara gelsin, kaç etiketten sonra otomatik tanısın?",
+        "data": {
+          "notify_services": "Bildirim gönderilecek telefonlar",
+          "min_manual": "Otomatik tanıma için gereken etiket sayısı"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Durum",
+        "state": {
+          "standby": "Boşta",
+          "cat_near": "Kedi yaklaştı",
+          "cat_in": "Kedi içeride",
+          "cat_out": "Kedi çıktı",
+          "clean": "Temizleniyor",
+          "sleep": "Uyku",
+          "uv": "UV",
+          "other": "Diğer"
+        }
+      },
+      "last_cat": {
+        "name": "Son kedi"
+      },
+      "pending": {
+        "name": "Bekleyen etiket"
+      },
+      "visits_today": {
+        "name": "Bugünkü ziyaret"
+      },
+      "last_clean": {
+        "name": "Son temizlik"
+      },
+      "cat_weight": {
+        "name": "Kilo"
+      },
+      "cat_last_visit": {
+        "name": "Son ziyaret"
+      },
+      "cat_visits_today": {
+        "name": "Bugünkü ziyaret"
+      }
+    },
+    "binary_sensor": {
+      "scale_suspect": {
+        "name": "Tartı şüpheli"
+      },
+      "occupied": {
+        "name": "Kedi içeride"
+      }
+    }
+  },
+  "services": {
+    "add_visit": {
+      "name": "Ziyaret ekle",
+      "description": "Elle bir kum kabı ziyareti ekler.",
+      "fields": {
+        "weight_kg": {
+          "name": "Ağırlık",
+          "description": "Kedinin ağırlığı (kg)."
+        },
+        "start": {
+          "name": "Zaman",
+          "description": "Ziyaret zamanı."
+        },
+        "duration": {
+          "name": "Süre",
+          "description": "Saniye cinsinden süre."
+        }
+      }
+    },
+    "reset_scale_warning": {
+      "name": "Tartı uyarısını sıfırla",
+      "description": "Tartı şüpheli uyarısını kapatır."
+    }
+  }
+}

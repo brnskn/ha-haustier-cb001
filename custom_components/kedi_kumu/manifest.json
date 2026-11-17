@@ -1,0 +1,24 @@
+{
+  "domain": "kedi_kumu",
+  "name": "Kedi Kumu",
+  "codeowners": [
+    "@brnskn"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "tuya",
+    "http",
+    "frontend",
+    "websocket_api"
+  ],
+  "after_dependencies": [
+    "mobile_app"
+  ],
+  "documentation": "https://github.com/brnskn/ha-kedi-kumu",
+  "integration_type": "device",
+  "iot_class": "cloud_push",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "1.0.0",
+  "issue_tracker": "https://github.com/brnskn/ha-kedi-kumu/issues"
+}
