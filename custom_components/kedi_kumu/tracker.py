@@ -168,9 +168,10 @@ class LitterTracker:
 
     def tuya_registry_device_id(self) -> str | None:
         registry = dr.async_get(self.hass)
-        for device in registry.devices.values():
-            if ("tuya", self.device_id) in device.identifiers:
-                return device.id
+        for entry in self.hass.config_entries.async_entries("tuya"):
+            for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
+                if ("tuya", self.device_id) in device.identifiers:
+                    return device.id
         return None
 
     def box_registry_device_id(self) -> str | None:
