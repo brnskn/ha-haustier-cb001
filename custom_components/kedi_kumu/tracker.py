@@ -35,6 +35,7 @@ from .const import (
     FAULT_GRACE,
     FAULT_LABELS,
     FAULT_MESSAGES,
+    NOTIFY_TEXT,
     SCHEMA_DPS,
     EVENT_ANOMALY,
     EVENT_VISIT,
@@ -325,7 +326,7 @@ class LitterTracker:
         tag = f"kedi_kumu_fault_{label}"
         for service in self.notify_services:
             data = (
-                {"title": "🐾 Kum kabı", "message": FAULT_MESSAGES.get(label, label), "data": {"tag": tag, "group": "kedi_kumu"}}
+                {"title": self._text("fault_title"), "message": FAULT_MESSAGES[self._lang].get(label, label), "data": {"tag": tag, "group": "kedi_kumu"}}
                 if active
                 else {"message": "clear_notification", "data": {"tag": tag}}
             )
@@ -857,27 +858,36 @@ class LitterTracker:
         self._notify_change()
 
     # ------------------------------------------------------- notifications
+    @property
+    def _lang(self) -> str:
+        return "tr" if str(self.hass.config.language or "").lower().startswith("tr") else "en"
+
+    def _text(self, key: str, **kw: Any) -> str:
+        return NOTIFY_TEXT[self._lang][key].format(**kw)
+
     async def _async_send_question(self, visit: dict) -> None:
         services = self.notify_services
         if not services or not self.cats:
             return
         local = dt_util.as_local(dt_util.parse_datetime(visit["start"]))
-        weight = f"{visit['weight'] / 1000:.2f}".replace(".", ",") if visit.get("weight") else "?"
+        weight = f"{visit['weight'] / 1000:.2f}" if visit.get("weight") else "?"
+        if self._lang == "tr":
+            weight = weight.replace(".", ",")
         parts = [f"{weight} kg", local.strftime("%H:%M")]
         if visit.get("duration"):
-            parts.insert(1, f"{visit['duration']} sn")
+            parts.insert(1, self._text("sec", n=visit["duration"]))
         suggestion = self.get_cat(visit.get("suggestion"))
         message = " · ".join(parts)
         if suggestion:
-            message += f"\nTahminim: {suggestion['name']}"
+            message += "\n" + self._text("guess", name=suggestion["name"])
         if visit.get("anomaly"):
-            message += "\nBu ağırlık hiçbir kediye uymuyor; tartı kaymış olabilir."
+            message += "\n" + self._text("anomaly")
         actions = [
             {"action": f"{NOTIFY_ACTION_PREFIX}_{visit['id']}_{c['id']}", "title": c["name"]}
             for c in self.cats[:8]
         ]
         actions.append(
-            {"action": f"{NOTIFY_ACTION_PREFIX}_{visit['id']}_{NOT_CAT}", "title": "Kedi değil", "destructive": True}
+            {"action": f"{NOTIFY_ACTION_PREFIX}_{visit['id']}_{NOT_CAT}", "title": self._text("not_cat"), "destructive": True}
         )
         data = {
             "tag": f"kedi_kumu_{visit['id']}",
@@ -890,7 +900,7 @@ class LitterTracker:
                 await self.hass.services.async_call(
                     "notify",
                     service,
-                    {"title": "🐾 Kumu kim kullandı?", "message": message, "data": data},
+                    {"title": self._text("question_title"), "message": message, "data": data},
                     blocking=False,
                 )
             except Exception as err:  # noqa: BLE001

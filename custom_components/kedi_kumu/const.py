@@ -44,12 +44,40 @@ FAULT_GRACE = {
     "filter_fault": 60,
     "full_fault": 30,
 }
+# Push notification texts, picked by the Home Assistant language (Turkish or English)
 FAULT_MESSAGES = {
-    "motor_fault": "Kum kabında motor arızası var.",
-    "g_sensor_fault": "Kum kabının ağırlık sensöründe arıza var.",
-    "full_fault": "Atık poşeti doldu, değiştirme zamanı.",
-    "box_out": "Atık haznesinin kapağı kapalı değil.",
-    "filter_fault": "Koku giderici filtrenin süresi doldu, değiştirme zamanı.",
+    "en": {
+        "motor_fault": "The litter box reports a motor fault.",
+        "g_sensor_fault": "The litter box weight sensor reports a fault.",
+        "full_fault": "The waste bag is full, time to change it.",
+        "box_out": "The waste drawer cover is not closed.",
+        "filter_fault": "The deodorizer filter has expired, time to replace it.",
+    },
+    "tr": {
+        "motor_fault": "Kum kabında motor arızası var.",
+        "g_sensor_fault": "Kum kabının ağırlık sensöründe arıza var.",
+        "full_fault": "Atık poşeti doldu, değiştirme zamanı.",
+        "box_out": "Atık haznesinin kapağı kapalı değil.",
+        "filter_fault": "Koku giderici filtrenin süresi doldu, değiştirme zamanı.",
+    },
+}
+NOTIFY_TEXT = {
+    "en": {
+        "fault_title": "🐾 Litter box",
+        "question_title": "🐾 Who used the litter box?",
+        "guess": "My guess: {name}",
+        "anomaly": "This weight matches no cat; the scale may have drifted.",
+        "not_cat": "Not a cat",
+        "sec": "{n} s",
+    },
+    "tr": {
+        "fault_title": "🐾 Kum kabı",
+        "question_title": "🐾 Kumu kim kullandı?",
+        "guess": "Tahminim: {name}",
+        "anomaly": "Bu ağırlık hiçbir kediye uymuyor; tartı kaymış olabilir.",
+        "not_cat": "Kedi değil",
+        "sec": "{n} sn",
+    },
 }
 
 # Box states reported on DP 24 (plus a few the Tuya integration filters out)

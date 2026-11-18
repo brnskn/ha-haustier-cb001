@@ -234,7 +234,10 @@ async def tracker_tests():
     check(not sent, "drawer out: nothing before the grace period")
     tr._confirm_fault("box_out")  # grace period elapsed
     await hass.async_block_till_done()
-    check(any("kapağı kapalı değil" in str(x[1].get("message")) for x in sent) and tr.snapshot()["faults"] == ["box_out"], "lasting drawer out is notified")
+    check(any("cover is not closed" in str(x[1].get("message")) for x in sent) and tr.snapshot()["faults"] == ["box_out"], "lasting drawer out is notified")
+    hass.config.language = "tr"
+    check(tr._text("guess", name="X") == "Tahminim: X" and tr._lang == "tr", "notifications follow the HA language (tr)")
+    hass.config.language = "en"
     tr._handle_report([{"dpId": 22, "t": t0 + 306 * 60000, "value": 0}])
     await hass.async_block_till_done()
     check(any(x[1].get("message") == "clear_notification" for x in sent) and tr.snapshot()["faults"] == [], "cleared fault clears the notification")

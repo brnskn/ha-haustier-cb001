@@ -6,7 +6,7 @@
 
 Custom Home Assistant integration and Lovelace card for the **Haustier CB001** smart cat litter box (Tuya based). It recognizes **which cat** used the box from its weight, keeps a visit history per cat, tracks each cat's weight over time and shows everything on a dedicated dashboard card with cat profiles and photos.
 
-> 🇹🇷 **Kısaca:** Haustier CB001 kum kabı için Home Assistant eklentisi ve kartı. Tuya entegrasyonunun attığı ham ziyaret kayıtlarını (DP 104) yakalar, her ziyaretin ağırlığını ve süresini çıkarır. İlk birkaç ziyarette "Bu kim?" diye sorup kedilerinizi ağırlıklarından tanımayı öğrenir. Kedi profilleri (isim, fotoğraf, renk), kilo grafikleri, ziyaret geçmişi ve telefona "kim kullandı?" bildirimleri içerir. Kartın arayüzü Türkçedir.
+> 🇹🇷 **Kısaca:** Haustier CB001 kum kabı için Home Assistant eklentisi ve kartı. Tuya entegrasyonunun attığı ham ziyaret kayıtlarını (DP 104) yakalar, her ziyaretin ağırlığını ve süresini çıkarır. İlk birkaç ziyarette "Bu kim?" diye sorup kedilerinizi ağırlıklarından tanımayı öğrenir. Kedi profilleri (isim, fotoğraf, renk), kilo grafikleri, ziyaret geçmişi ve telefona "kim kullandı?" bildirimleri içerir. Kart ve bildirimler Türkçe ve İngilizcedir; dil Home Assistant ayarından otomatik seçilir.
 
 ## Warning
 
@@ -25,7 +25,7 @@ This integration decodes those records and turns them into visits.
 - **Visit tracking** from the raw Tuya records: weight, time in the box, start and end time, cleaning cycles.
 - **Cat recognition by weight**
   - Add your cats with name, photo, color and an optional approximate weight.
-  - During the first visits the card (and optionally your phone) asks **"Bu kim?"** ("Who was it?") with the most likely cat pre-selected.
+  - During the first visits the card (and optionally your phone) asks **"Who's this?"** with the most likely cat pre-selected.
   - After a configurable number of labels per cat (default 3), confident visits are assigned automatically.
   - Ambiguous visits (cats with similar weights, a weight between two cats) are always asked, never guessed.
   - You can correct any visit; the model updates immediately.
@@ -39,7 +39,8 @@ This integration decodes those records and turns them into visits.
   - Each cat is a button, plus "Kedi değil" (not a cat).
   - Answering on one phone clears the question on the others.
 - **Lovelace card** (`custom:kedi-kumu-card`), loaded automatically with no resource to add.
-  - Live status, for example "Pamuk kumda · 3,78 kg".
+  - English and Turkish UI. The language follows your Home Assistant profile and can be pinned with `language:`.
+  - Live status, for example "Luna in the box · 3.78 kg".
   - Pending questions.
   - Cat tiles with photo, last weight, weight trend, sparkline and learning progress.
   - Today's timeline.
@@ -116,7 +117,8 @@ type: custom:kedi-kumu-card
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `title` | `Kedi Kumu` | Card title. |
+| `title` | `Litter Box` / `Kedi Kumu` | Card title. |
+| `language` | profile language | `en` or `tr`. Anything other than Turkish falls back to English. Dates and numbers follow the same locale. |
 | `compact` | `false` | Only status, questions and cat tiles, plus a one-line summary. Good for an overview page. |
 | `show_controls` | `true` | Show the clean, light and auto clean buttons. |
 | `recent` | `6` | Number of recent visits shown. |
@@ -271,7 +273,7 @@ Weights under 500 g or over 15 kg are marked "not a cat" automatically.
 - Depends on the Tuya cloud and the internals of `tuya-device-sharing-sdk`.
 - Visits that happen while Home Assistant is down are not recovered. Tuya's device log API is not used.
 - Recognition uses weight only. Cats whose weights differ by less than ~150–200 g will often be asked instead of auto-assigned.
-- The card UI is Turkish only. Entity and config flow texts are available in Turkish and English.
+- The card, entities, config flow and phone notifications are available in English and Turkish only. Notifications use the Home Assistant system language.
 - Kind `0` (presence) is decoded but not used for visits.
 
 ## Development
@@ -300,7 +302,6 @@ node --check custom_components/kedi_kumu/frontend/kedi-kumu-card.js
 
 - Use visit time of day and duration as extra features for cats with similar weights.
 - Read the Tuya device log to recover visits missed while Home Assistant was offline.
-- English card UI.
 - Diagnostics download.
 - `pytest-homeassistant-custom-component` based tests.
 
