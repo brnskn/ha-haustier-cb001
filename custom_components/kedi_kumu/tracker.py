@@ -184,6 +184,8 @@ class LitterTracker:
                         pass
                 return _orig(dev_id, status)
 
+            # Other integrations may wrap the same method: keep their markers so they don't wrap again
+            _on_device_report.__dict__.update(getattr(original, "__dict__", None) or {})
             _on_device_report._kedi_kumu = True  # type: ignore[attr-defined]
             manager._on_device_report = _on_device_report
             self._hooked_manager = manager
