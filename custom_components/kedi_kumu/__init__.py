@@ -10,7 +10,9 @@ from pathlib import Path
 import voluptuous as vol
 
 from homeassistant.components.frontend import add_extra_js_url
-from homeassistant.components.http import StaticPathConfig
+from aiohttp import web
+
+from homeassistant.components.http import HomeAssistantView, StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -44,17 +46,34 @@ def _card_url() -> str:
     return f"{URL_CARD}?v={VERSION}-{digest}"
 
 
+class CardView(HomeAssistantView):
+    """Serve the card with "no-cache" so browsers revalidate (ETag) on every load.
+
+    Without it, a card updated while Home Assistant keeps running stays stale in
+    browsers and the companion apps until the URL's version changes at restart.
+    """
+
+    url = URL_CARD
+    name = "kedi_kumu:card"
+    requires_auth = False
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    async def get(self, request: web.Request) -> web.FileResponse:
+        return web.FileResponse(
+            self.path,
+            headers={"Cache-Control": "no-cache", "Content-Type": "text/javascript; charset=utf-8"},
+        )
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the card, static paths, websocket commands and services."""
     photo_dir = Path(hass.config.path(DOMAIN, "photos"))
     await hass.async_add_executor_job(lambda: photo_dir.mkdir(parents=True, exist_ok=True))
     card = Path(__file__).parent / "frontend" / "kedi-kumu-card.js"
-    await hass.http.async_register_static_paths(
-        [
-            StaticPathConfig(URL_CARD, str(card), False),
-            StaticPathConfig(URL_PHOTOS, str(photo_dir), True),
-        ]
-    )
+    await hass.http.async_register_static_paths([StaticPathConfig(URL_PHOTOS, str(photo_dir), True)])
+    hass.http.register_view(CardView(card))
     add_extra_js_url(hass, await hass.async_add_executor_job(_card_url))
     async_register_websocket(hass)
 

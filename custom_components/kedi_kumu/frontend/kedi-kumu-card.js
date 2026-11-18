@@ -102,6 +102,7 @@ class KediKumuCard extends HTMLElement {
 
   setConfig(config) {
     this._config = { title: "Kedi Kumu", show_controls: true, recent: 6, ...config };
+    this.toggleAttribute("compact", !!this._config.compact);
     if (this._root) this._render();
   }
 
@@ -407,19 +408,19 @@ class KediKumuCard extends HTMLElement {
         const w = c.last_weight ?? c.center ?? c.hint;
         const learn = c.trained
           ? `<span class="learn ok"><ha-icon icon="mdi:check-decagram"></ha-icon>Tanıyor</span>`
-          : `<span class="learn"><span class="bar"><i style="width:${Math.min(100, (c.manual_count / d.min_manual) * 100)}%"></i></span>Öğreniyor ${c.manual_count}/${d.min_manual}</span>`;
+          : `<span class="learn" title="Öğreniyor"><span class="bar"><i style="width:${Math.min(100, (c.manual_count / d.min_manual) * 100)}%"></i></span>${this._config.compact ? "" : "Öğreniyor "}${c.manual_count}/${d.min_manual}</span>`;
         return `
         <button class="cat" data-action="cat" data-id="${c.id}" style="--c:${esc(c.color)}">
           ${this._avatar(c, "lg")}
           <div class="cat-name">${esc(c.name)}</div>
           <div class="cat-w">${w ? `${kg(w)}<small> kg</small>` : `<small>kilo yok</small>`} ${trend}</div>
           ${this._spark(c)}
-          <div class="cat-meta">${c.today ? `Bugün ${c.today}` : "Bugün yok"} · ${ago(c.last_visit)}</div>
+          <div class="cat-meta">${c.today ? `Bugün ${c.today}` : "Bugün yok"}${this._config.compact ? "" : ` · ${ago(c.last_visit)}`}</div>
           ${learn}
         </button>`;
       })
       .join("");
-    return `<div class="section cats">${tiles}</div>`;
+    return `<div class="section cats" style="--cols:${Math.min(4, d.cats.length)}">${tiles}</div>`;
   }
 
   _renderToday(d) {
@@ -1169,6 +1170,15 @@ dialog::backdrop { background: rgba(0,0,0,.45); backdrop-filter: blur(2px); }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; padding: 10px 16px; border-radius: 999px; background: #2b2b2b; color: #fff; font-size: .9em; transition: all .2s; z-index: 10; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.bad { background: #b3261e; }
+:host([compact]) .cats { grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 8px; }
+:host([compact]) .cat { min-width: 0; }
+:host([compact]) .cat-name, :host([compact]) .cat-meta, :host([compact]) .learn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:host([compact]) .learn .bar { width: 22px; flex: none; }
+:host([compact]) .cat { padding: 10px 4px 8px; }
+:host([compact]) .cat .av.lg { width: 48px; height: 48px; font-size: 1.1em; }
+:host([compact]) .cat-w { font-size: 1.05em; }
+:host([compact]) .cat-meta, :host([compact]) .learn { font-size: .7em; }
+:host([compact]) .spark { display: none; }
 @media (max-width: 420px) { .gauges { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } .cats { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); } }
 `;
 
