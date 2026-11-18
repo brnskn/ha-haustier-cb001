@@ -94,6 +94,9 @@ def _ms_to_iso(ms: int | None) -> str:
     return dt_util.utcnow().isoformat()
 
 
+CRITICAL_PUSH = {"sound": {"name": "default", "critical": 1, "volume": 1.0}, "interruption-level": "critical"}
+
+
 class LitterTracker:
     """Keeps cats and visits, listens to the Tuya litter box."""
 
@@ -324,11 +327,12 @@ class LitterTracker:
         self.hass.async_create_task(self._async_notify_fault(label, True))
         self._notify_change()
 
+    # A confirmed fault needs someone at the box, so it rings through silent mode and Focus on iOS.
     async def _async_notify_fault(self, label: str, active: bool) -> None:
         tag = f"kedi_kumu_fault_{label}"
         for service in self.notify_services:
             data = (
-                {"title": self._text("fault_title"), "message": FAULT_MESSAGES[self._lang].get(label, label), "data": {"tag": tag, "group": "kedi_kumu"}}
+                {"title": self._text("fault_title"), "message": FAULT_MESSAGES[self._lang].get(label, label), "data": {"tag": tag, "group": "kedi_kumu", "push": CRITICAL_PUSH}}
                 if active
                 else {"message": "clear_notification", "data": {"tag": tag}}
             )
