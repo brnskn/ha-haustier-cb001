@@ -58,7 +58,9 @@ from .settings import (
     DP_CHILD_LOCK,
     DP_CLEAN_SCHEDULE,
     DP_DND,
+    DP_FILTER_RESET,
     DP_LEVEL,
+    DP_POUR_SAND,
     DP_STERILIZE_SCHEDULE,
     decode_settings,
     encode_clean_schedule,
@@ -342,7 +344,7 @@ class LitterTracker:
         )
 
     def _busy(self) -> bool:
-        return self.current is not None or self.status in ("cat_in", "cat_near", "clean", "smooth")
+        return self.current is not None or self.status in ("cat_in", "cat_near", "clean", "smooth", "clear_sand")
 
     async def _async_local_set(self, dp: int, value: Any) -> None:
         try:
@@ -367,6 +369,12 @@ class LitterTracker:
             if self._busy():
                 raise ValueError("box_busy")
             await self._async_local_set(DP_LEVEL, True)
+        elif action == "pour_sand":
+            if self._busy():
+                raise ValueError("box_busy")
+            await self._async_local_set(DP_POUR_SAND, True)
+        elif action == "filter_reset":
+            await self._async_local_set(DP_FILTER_RESET, True)
         elif action == "child_lock":
             await self._async_local_set(DP_CHILD_LOCK, bool(value))
         elif action == "dnd":

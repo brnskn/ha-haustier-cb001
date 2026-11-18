@@ -51,7 +51,7 @@ This integration decodes those records and turns them into visits.
 - **Box controls and hidden settings** (read and written over the LAN with the key the Tuya integration already has, Tuya protocol 3.5):
   - Level litter, UV sterilization, drum light, auto clean and clean delay.
   - Child lock, Do Not Disturb (time range), cleaning schedule, sterilization schedule.
-  - Deodorizer days left.
+  - Deodorizer filter days left and reset; empty the litter (litter change).
   - All faults: waste bag full, drawer out, motor, weight sensor, filter. Each one sends a phone notification that clears itself when fixed.
 - **Entities per cat**, so Home Assistant keeps long-term statistics:
   - Weight (kg).
@@ -232,18 +232,22 @@ Other data points used: `dp24` box state, `dp7` visits today, `dp8` duration of 
 
 ### Data points outside the cloud schema
 
-These were mapped by toggling each setting in the Tuya app and watching the device. Raw values are base64.
+Names and meanings come from the device's Tuya thing model (`GET /v2.0/cloud/thing/{device_id}/model`), and were confirmed by toggling each setting in the Tuya app. Raw values are base64.
 
-| DP | Setting | Value |
-| --- | --- | --- |
-| 1 | Manual UV sterilization | bool; runs until switched off (in the cloud schema as `switch`) |
-| 102 | Level litter | bool trigger (state becomes `smooth`) |
-| 103 | Child lock | bool |
-| 105 | Do Not Disturb | raw `start_h start_m end_h end_m enabled` |
-| 106 | Sterilization schedule | raw, 5 bytes per entry: `hour minute flags minutes enabled` |
-| 107 | Cleaning schedule | raw, 3 bytes per entry: `hour minute enabled` |
-| 109 | Deodorizer days left | int |
-| 101, 108 | Not mapped yet (one is "add litter", which empties the drum) | bool |
+| DP | Code | Meaning | Value |
+| --- | --- | --- | --- |
+| 1 | `switch` | UV sterilize and deodorize | bool; runs until switched off |
+| 101 | `pour_sand` | Empty all litter into the bag (the app's "add litter") | bool trigger; state becomes `clear_sand` |
+| 102 | `smooth_sand` | Level the litter | bool trigger; state becomes `smooth` |
+| 103 | `child_lock` | Child lock | bool |
+| 104 | `work_record` | Visit / cleaning records (see above) | raw |
+| 105 | `sleep_onoff_time` | Do Not Disturb | raw `start_h start_m end_h end_m enabled` |
+| 106 | `uv_onoff_time` | Sterilization schedule | raw, 5 bytes per entry: `hour minute minutes(uint16 BE) enabled` |
+| 107 | `clean_onoff_time` | Cleaning schedule | raw, 3 bytes per entry: `hour minute enabled` |
+| 108 | `filter_reset` | Deodorizer filter replaced | bool trigger |
+| 109 | `filter_days` | Deodorizer filter days left | 0–30 |
+
+DP 22 (`fault`) bits, in order: `motor_fault`, `g_sensor_fault`, `full_fault` (bag full), `box_out` (waste drawer cover not closed), `filter_fault` (filter expired). The box briefly raises `motor_fault` when it pauses the drum because a cat came near during cleaning. Each fault must last a grace period (motor and weight sensor 3 min, cover and filter 1 min, bag full 30 s) before it is shown or notified.
 
 DP 105–107 are only pushed when they change, so the integration stores their last value. The other data points are read over the LAN every 10 minutes and after each command.
 

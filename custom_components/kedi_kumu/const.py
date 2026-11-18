@@ -48,8 +48,8 @@ FAULT_MESSAGES = {
     "motor_fault": "Kum kabında motor arızası var.",
     "g_sensor_fault": "Kum kabının ağırlık sensöründe arıza var.",
     "full_fault": "Atık poşeti doldu, değiştirme zamanı.",
-    "box_out": "Atık haznesi yerinde değil.",
-    "filter_fault": "Kum kabının filtresinde sorun var.",
+    "box_out": "Atık haznesinin kapağı kapalı değil.",
+    "filter_fault": "Koku giderici filtrenin süresi doldu, değiştirme zamanı.",
 }
 
 # Box states reported on DP 24 (plus a few the Tuya integration filters out)
@@ -60,6 +60,7 @@ BOX_STATES = [
     "cat_out",
     "clean",
     "smooth",
+    "clear_sand",
     "sleep",
     "uv",
     "other",

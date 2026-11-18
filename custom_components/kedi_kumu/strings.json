@@ -39,7 +39,8 @@
           "sleep": "Sleep",
           "uv": "Sterilizing",
           "other": "Other",
-          "smooth": "Leveling litter"
+          "smooth": "Leveling litter",
+          "clear_sand": "Emptying litter"
         }
       },
       "last_cat": {

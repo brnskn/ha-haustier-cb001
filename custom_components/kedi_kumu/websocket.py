@@ -146,7 +146,7 @@ def ws_reset_scale(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
     {
         vol.Required("type"): "kedi_kumu/command",
         vol.Required("action"): vol.In(
-            ["sterilize", "stop_sterilize", "level", "child_lock", "dnd", "clean_schedule",
+            ["sterilize", "stop_sterilize", "level", "pour_sand", "filter_reset", "child_lock", "dnd", "clean_schedule",
              "sterilize_schedule", "reset_bin", "sleep", "wake", "set_dp"]
         ),
         vol.Optional("dp"): vol.All(int, vol.Range(min=1, max=255)),

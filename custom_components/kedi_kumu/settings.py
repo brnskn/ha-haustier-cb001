@@ -1,16 +1,19 @@
 """Haustier CB001 settings that live outside the Tuya cloud schema.
 
-Mapped by toggling each setting in the Tuya app and watching the device:
+From the device's Tuya thing model (product nietgqxmysgyf988), confirmed by
+toggling each setting in the Tuya app and watching the device:
 
-    DP 1    manual UV sterilization, bool; runs until switched off
-            (in the cloud schema as "switch")
-    DP 102  level litter, bool trigger                 (status becomes "smooth")
-    DP 103  child lock, bool
-    DP 105  do not disturb, raw: start_h start_m end_h end_m enabled
-    DP 106  sterilization schedule, raw: 5 bytes per entry
-            hour minute flags minutes enabled
-    DP 107  cleaning schedule, raw: 3 bytes per entry: hour minute enabled
-    DP 109  deodorizer days left, int
+    DP 1    switch            UV sterilize + deodorize, bool; runs until off
+    DP 101  pour_sand         empty the litter into the bag, bool trigger
+                              (status becomes "clear_sand"; the app calls it "Kum Ekle")
+    DP 102  smooth_sand       level the litter, bool trigger (status "smooth")
+    DP 103  child_lock        bool
+    DP 105  sleep_onoff_time  do not disturb, raw: start_h start_m end_h end_m enabled
+    DP 106  uv_onoff_time     sterilization schedule, raw, 5 bytes per entry:
+                              hour minute minutes(uint16 BE) enabled
+    DP 107  clean_onoff_time  cleaning schedule, raw, 3 bytes per entry: hour minute enabled
+    DP 108  filter_reset      deodorizer filter replaced, bool trigger
+    DP 109  filter_days       deodorizer filter days left, 0-30
 
 Raw values travel base64 encoded, as in the Tuya app.
 """
@@ -23,11 +26,13 @@ import re
 from typing import Any
 
 DP_STERILIZE = 1
+DP_POUR_SAND = 101
 DP_LEVEL = 102
 DP_CHILD_LOCK = 103
 DP_DND = 105
 DP_STERILIZE_SCHEDULE = 106
 DP_CLEAN_SCHEDULE = 107
+DP_FILTER_RESET = 108
 DP_DEODORIZER_DAYS = 109
 
 MAX_SCHEDULE_ENTRIES = 8
@@ -100,8 +105,7 @@ def decode_sterilize_schedule(value: Any) -> list[dict[str, Any]] | None:
     return [
         {
             "time": _hm(data[i], data[i + 1]),
-            "flags": data[i + 2],
-            "minutes": data[i + 3],
+            "minutes": int.from_bytes(data[i + 2 : i + 4], "big"),
             "enabled": bool(data[i + 4]),
         }
         for i in range(0, len(data) - len(data) % 5, 5)
@@ -115,10 +119,9 @@ def encode_sterilize_schedule(entries: list[dict[str, Any]]) -> str:
     for entry in entries:
         h, m = parse_time(entry["time"])
         minutes = int(entry.get("minutes", 5))
-        if not 1 <= minutes <= 60:
-            raise ValueError("minutes must be 1-60")
-        flags = int(entry.get("flags", 0)) & 0xFF
-        out += bytes([h, m, flags, minutes, 1 if entry.get("enabled", True) else 0])
+        if not 1 <= minutes <= 120:
+            raise ValueError("minutes must be 1-120")
+        out += bytes([h, m]) + minutes.to_bytes(2, "big") + bytes([1 if entry.get("enabled", True) else 0])
     return _enc(bytes(out))
 
 

@@ -39,7 +39,8 @@
           "sleep": "Uyku",
           "uv": "Sterilize ediliyor",
           "other": "Diğer",
-          "smooth": "Kum düzleniyor"
+          "smooth": "Kum düzleniyor",
+          "clear_sand": "Kum boşaltılıyor"
         }
       },
       "last_cat": {

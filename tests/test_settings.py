@@ -27,8 +27,11 @@ class TestSettings(unittest.TestCase):
     def test_sterilize_schedule_matches_app_capture(self):
         # App: sterilization 02:00 for 5 minutes, on then off
         on = settings.decode_sterilize_schedule("AgAABQE=")
-        self.assertEqual(on, [{"time": "02:00", "flags": 0, "minutes": 5, "enabled": True}])
+        self.assertEqual(on, [{"time": "02:00", "minutes": 5, "enabled": True}])
         self.assertEqual(settings.encode_sterilize_schedule(on), "AgAABQE=")
+        # Thing model example: 0A00 0020 01 = 10:00 for 32 minutes, enabled
+        self.assertEqual(settings.decode_sterilize_schedule("CgAAIAE="), [{"time": "10:00", "minutes": 32, "enabled": True}])
+        self.assertEqual(settings.encode_sterilize_schedule([{"time": "10:00", "minutes": 32}]), "CgAAIAE=")
         self.assertFalse(settings.decode_sterilize_schedule("AgAABQA=")[0]["enabled"])
 
     def test_validation(self):

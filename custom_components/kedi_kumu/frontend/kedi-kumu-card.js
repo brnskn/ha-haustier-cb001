@@ -8,6 +8,7 @@ const KK_STATUS = {
   cat_out: { text: "Kedi çıktı", icon: "mdi:exit-run", tone: "warn" },
   clean: { text: "Temizleniyor", icon: "mdi:rotate-3d-variant", tone: "info" },
   smooth: { text: "Kum düzleniyor", icon: "mdi:wave", tone: "info" },
+  clear_sand: { text: "Kum boşaltılıyor", icon: "mdi:delete-sweep", tone: "info" },
   sleep: { text: "Uyku", icon: "mdi:sleep", tone: "muted" },
   uv: { text: "Sterilize ediliyor", icon: "mdi:shield-sun-outline", tone: "info" },
   other: { text: "Bilinmiyor", icon: "mdi:help-circle-outline", tone: "muted" },
@@ -15,10 +16,10 @@ const KK_STATUS = {
 
 const KK_FAULTS = {
   full_fault: { icon: "mdi:delete-alert", text: "Atık poşeti dolu, değiştirme zamanı" },
-  box_out: { icon: "mdi:archive-alert", text: "Atık haznesi yerinde değil" },
+  box_out: { icon: "mdi:archive-alert", text: "Atık haznesinin kapağı kapalı değil" },
   motor_fault: { icon: "mdi:engine-off", text: "Motor arızası" },
   g_sensor_fault: { icon: "mdi:scale-off", text: "Ağırlık sensörü arızası" },
-  filter_fault: { icon: "mdi:air-filter", text: "Filtrede sorun var" },
+  filter_fault: { icon: "mdi:air-filter", text: "Koku giderici filtrenin süresi doldu" },
 };
 
 const KK_COLORS = ["#f4a261", "#2a9d8f", "#e76f51", "#8e7dbe", "#e9c46a", "#4ea8de", "#d16ba5", "#7a8b99"];
@@ -467,7 +468,7 @@ class KediKumuCard extends HTMLElement {
   _renderControls(d) {
     const c = d.controls || {};
     const s = (id) => (id ? this._hass.states[id] : null);
-    const busy = !!d.current || ["cat_in", "cat_near", "clean", "smooth"].includes(d.status);
+    const busy = !!d.current || ["cat_in", "cat_near", "clean", "smooth", "clear_sand"].includes(d.status);
     const light = s(c.light);
     const auto = s(c.auto_clean);
     const ster = !!d.settings?.sterilizing || d.status === "uv";
@@ -528,6 +529,15 @@ class KediKumuCard extends HTMLElement {
       case "reset-bin":
         if (!confirm("Atık poşetini değiştirdin mi? Sayaç sıfırlanacak.")) return;
         return this._ws({ type: "kedi_kumu/command", action: "reset_bin" }, "Atık haznesi sayacı sıfırlandı");
+      case "filter-reset":
+        e.stopPropagation();
+        if (!confirm("Koku giderici filtreyi yeniledin mi? Süre 30 güne sıfırlanacak.")) return;
+        return this._ws({ type: "kedi_kumu/command", action: "filter_reset" }, "Koku giderici süresi sıfırlandı");
+      case "pour-sand":
+        if (!confirm("Tamburdaki BÜTÜN kum atık poşetine boşaltılacak (uygulamadaki \"Kum Ekle\"). Kum değiştirmek istiyorsan devam et.")) return;
+        if (!confirm("Emin misin? Bu işlem geri alınamaz; boşalttıktan sonra yeni kum doldurman gerekecek.")) return;
+        this._closeDialog();
+        return this._ws({ type: "kedi_kumu/command", action: "pour_sand" }, "Kum boşaltılıyor");
       case "level":
         return this._ws({ type: "kedi_kumu/command", action: "level" }, "Kum düzeltiliyor");
       case "stop-sterilize":
@@ -553,7 +563,7 @@ class KediKumuCard extends HTMLElement {
         return this._ws({ type: "kedi_kumu/command", action: "clean_schedule", value: this._sched.clean }, "Planlı temizlik kaydedildi");
       case "add-ster":
         this._readSchedules();
-        this._sched.ster.push({ time: "02:00", minutes: 5, enabled: true, flags: 0 });
+        this._sched.ster.push({ time: "02:00", minutes: 5, enabled: true });
         return this._renderSchedules();
       case "del-ster":
         this._readSchedules();
@@ -628,7 +638,7 @@ class KediKumuCard extends HTMLElement {
       out.push(`<button class="gauge" data-action="settings">
         <div class="g-top"><ha-icon icon="mdi:spray"></ha-icon><span>Koku giderici</span><b>${days} gün</b></div>
         <div class="g-bar ${days <= 3 ? "warn" : "ok"}"><i style="width:${pct}%"></i></div>
-        <div class="g-foot"><span class="muted">kalan süre</span></div>
+        <div class="g-foot"><span class="muted">kalan süre</span><span class="link" data-action="filter-reset">Yeniledim</span></div>
       </button>`);
     }
     return `<div class="gauges">${out.join("")}</div>`;
@@ -663,6 +673,10 @@ class KediKumuCard extends HTMLElement {
         <div class="set-actions"><button class="mini ghost" data-action="add-clean">+ Saat ekle</button><button class="mini" data-action="save-clean">Kaydet</button></div></div>
       <div class="set-sec"><div class="set-title"><ha-icon icon="mdi:shield-sun-outline"></ha-icon><b>Planlı sterilizasyon</b></div><div id="sched-ster"></div>
         <div class="set-actions"><button class="mini ghost" data-action="add-ster">+ Saat ekle</button><button class="mini" data-action="save-ster">Kaydet</button></div></div>
+      <div class="set-sec">
+        <div class="set-row"><ha-icon icon="mdi:delete-sweep"></ha-icon><div class="grow"><b>Kumu boşalt</b><div class="muted">Kum değiştirmek için tamburdaki tüm kumu poşete boşaltır</div></div>
+          <button class="mini danger" data-action="pour-sand" ${["cat_in", "cat_near", "clean", "smooth", "clear_sand"].includes(d.status) || d.current ? "disabled" : ""}>Boşalt</button></div>
+      </div>
       ${d.local?.error ? `<div class="note">Kum kabına yerel ağdan ulaşılamadı: ${esc(d.local.error)}</div>` : ""}`,
       { type: "settings" }
     );
@@ -679,7 +693,7 @@ class KediKumuCard extends HTMLElement {
     const ster = this._dlg.querySelector("#sched-ster");
     if (ster)
       ster.innerHTML = this._sched.ster.length
-        ? this._sched.ster.map((e, i) => `<div class="set-row sched"><input type="time" class="s-time" data-i="${i}" value="${esc(e.time)}"><input type="number" class="s-min num" data-i="${i}" min="1" max="60" value="${e.minutes}"><span class="muted">dk</span><span class="grow"></span>${sw("s-on", i, e.enabled)}<button class="icon sm" data-action="del-ster" data-i="${i}" aria-label="Sil"><ha-icon icon="mdi:delete-outline"></ha-icon></button></div>`).join("")
+        ? this._sched.ster.map((e, i) => `<div class="set-row sched"><input type="time" class="s-time" data-i="${i}" value="${esc(e.time)}"><input type="number" class="s-min num" data-i="${i}" min="1" max="120" value="${e.minutes}"><span class="muted">dk</span><span class="grow"></span>${sw("s-on", i, e.enabled)}<button class="icon sm" data-action="del-ster" data-i="${i}" aria-label="Sil"><ha-icon icon="mdi:delete-outline"></ha-icon></button></div>`).join("")
         : `<div class="muted pad">Planlı sterilizasyon yok</div>`;
   }
 
@@ -688,7 +702,7 @@ class KediKumuCard extends HTMLElement {
     all(".c-time").forEach((el) => (this._sched.clean[+el.dataset.i].time = el.value || "00:00"));
     all(".c-on").forEach((el) => (this._sched.clean[+el.dataset.i].enabled = el.checked));
     all(".s-time").forEach((el) => (this._sched.ster[+el.dataset.i].time = el.value || "00:00"));
-    all(".s-min").forEach((el) => (this._sched.ster[+el.dataset.i].minutes = Math.min(60, Math.max(1, parseInt(el.value, 10) || 5))));
+    all(".s-min").forEach((el) => (this._sched.ster[+el.dataset.i].minutes = Math.min(120, Math.max(1, parseInt(el.value, 10) || 5))));
     all(".s-on").forEach((el) => (this._sched.ster[+el.dataset.i].enabled = el.checked));
   }
 
@@ -1102,6 +1116,7 @@ button:disabled { opacity: .45; cursor: default; }
 .set-sec .num { width: 64px; }
 .big { font-size: 1.4em; font-weight: 700; } .big small { font-size: .55em; color: var(--secondary-text-color); } .big.warn { color: #d08a1f; }
 .mini { padding: 7px 14px; border-radius: 999px; background: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 600; font-size: .85em; }
+.mini.danger { background: #e5484d; color: #fff; }
 .mini.ghost { background: transparent; color: var(--primary-color); border: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent); }
 .icon.sm { width: 32px; height: 32px; } .icon.sm ha-icon { --mdc-icon-size: 18px; }
 .pad { padding: 6px 2px; }
