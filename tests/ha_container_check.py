@@ -222,13 +222,22 @@ async def tracker_tests():
     tr._handle_report([{"dpId": 22, "t": t0 + 302 * 60000, "value": 0}])  # back in, bag ok
     check(tr.bin.count == 0 and not tr.bin.full, "drawer out 2 min resets the bag counter")
     check(tr.snapshot()["waste"]["capacity"] == 12, "capacity kept after reset")
+    # Transient motor fault while the drum pauses for a cat: silent
     sent.clear()
-    tr._handle_report([{"dpId": 22, "t": t0 + 303 * 60000, "value": 8}])
-    await hass.async_block_till_done()
-    check(any("haznesi yerinde" in str(x[1].get("message")) for x in sent), "drawer out notification sent")
+    tr._handle_report([{"dpId": 22, "t": t0 + 303 * 60000, "value": 1}])
     tr._handle_report([{"dpId": 22, "t": t0 + 304 * 60000, "value": 0}])
     await hass.async_block_till_done()
-    check(tr.bin.count == 0 and any(x[1].get("message") == "clear_notification" for x in sent), "quick peek keeps counter, clears notification")
+    check(not sent and tr.snapshot()["faults"] == [], "transient motor fault is not reported")
+    # A fault that lasts past its grace period is shown and notified, then cleared
+    tr._handle_report([{"dpId": 22, "t": t0 + 305 * 60000, "value": 8}])
+    await hass.async_block_till_done()
+    check(not sent, "drawer out: nothing before the grace period")
+    tr._confirm_fault("box_out")  # grace period elapsed
+    await hass.async_block_till_done()
+    check(any("haznesi yerinde" in str(x[1].get("message")) for x in sent) and tr.snapshot()["faults"] == ["box_out"], "lasting drawer out is notified")
+    tr._handle_report([{"dpId": 22, "t": t0 + 306 * 60000, "value": 0}])
+    await hass.async_block_till_done()
+    check(any(x[1].get("message") == "clear_notification" for x in sent) and tr.snapshot()["faults"] == [], "cleared fault clears the notification")
 
     snap = tr.snapshot()
     json.dumps(snap)

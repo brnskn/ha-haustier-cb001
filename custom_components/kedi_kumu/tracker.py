@@ -32,6 +32,7 @@ from .const import (
     DP_FAULT,
     DP_RECORD,
     DP_STATUS,
+    FAULT_GRACE,
     FAULT_LABELS,
     FAULT_MESSAGES,
     SCHEMA_DPS,
@@ -110,6 +111,8 @@ class LitterTracker:
         self._hooked_manager: Any = None
         self.photo_dir = Path(hass.config.path(DOMAIN, "photos"))
         self.faults = 0
+        self.confirmed_faults: set[str] = set()
+        self._fault_timers: dict[str, CALLBACK_TYPE] = {}
         self.raw_dps: dict[str, dict[str, Any]] = {}
         self.local = LocalBox(hass, self.device_id, self._local_key)
         self.bin = WasteBin()
@@ -185,12 +188,16 @@ class LitterTracker:
             fault = getattr(device, "status", {}).get("fault") if device else None
             if isinstance(fault, int):
                 self.faults = fault
+                self.confirmed_faults = set(self.fault_list())
                 self.bin.full = "full_fault" in self.fault_list()
             _LOGGER.info("Attached to Tuya device %s", device_id)
             return
 
     @callback
     def async_unhook(self) -> None:
+        for cancel in self._fault_timers.values():
+            cancel()
+        self._fault_timers.clear()
         manager = self._hooked_manager
         if manager is not None and "_on_device_report" in manager.__dict__:
             del manager.__dict__["_on_device_report"]
@@ -275,9 +282,11 @@ class LitterTracker:
         if value == self.faults:
             return False
         before = set(self.fault_list())
+        old_value = self.faults
         self.faults = value
         after = set(self.fault_list())
         now = dt_util.utcnow()
+        _LOGGER.info("Fault bits %s -> %s %s (box status %s)", old_value, value, sorted(after), self.status)
         self.bin.on_full("full_fault" in after)
         if "box_out" in after - before:
             self.bin.on_drawer(True, now)
@@ -286,10 +295,29 @@ class LitterTracker:
             self.hass.bus.async_fire(f"{DOMAIN}_bag_changed", {"source": "drawer"})
         self._save()
         for label in after - before:
-            self.hass.async_create_task(self._async_notify_fault(label, True))
+            if label in self._fault_timers:
+                continue
+            self._fault_timers[label] = async_call_later(
+                self.hass, FAULT_GRACE.get(label, 60), lambda _now, lbl=label: self._confirm_fault(lbl)
+            )
         for label in before - after:
-            self.hass.async_create_task(self._async_notify_fault(label, False))
+            if (cancel := self._fault_timers.pop(label, None)) is not None:
+                cancel()
+                _LOGGER.info("Fault %s cleared within its grace period, not reported", label)
+            if label in self.confirmed_faults:
+                self.confirmed_faults.discard(label)
+                self.hass.async_create_task(self._async_notify_fault(label, False))
         return True
+
+    @callback
+    def _confirm_fault(self, label: str) -> None:
+        self._fault_timers.pop(label, None)
+        if label not in self.fault_list() or label in self.confirmed_faults:
+            return
+        _LOGGER.warning("Litter box fault confirmed: %s", label)
+        self.confirmed_faults.add(label)
+        self.hass.async_create_task(self._async_notify_fault(label, True))
+        self._notify_change()
 
     async def _async_notify_fault(self, label: str, active: bool) -> None:
         tag = f"kedi_kumu_fault_{label}"
@@ -616,7 +644,8 @@ class LitterTracker:
             "hooked": self.hooked,
             "controls": self.controls(),
             "notify": bool(self.notify_services),
-            "faults": self.fault_list(),
+            "faults": sorted(self.confirmed_faults),
+            "faults_raw": self.fault_list(),
             "local": self.local.info(),
             "raw_dps": self.raw_dps,
             "settings": self.settings(),

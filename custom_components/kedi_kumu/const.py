@@ -34,6 +34,16 @@ SCHEMA_DPS = {1, 4, 5, 6, 7, 8, 9, 16, 22, 23, 24}
 
 # DP 22 bitmap, in bit order
 FAULT_LABELS = ["motor_fault", "g_sensor_fault", "full_fault", "box_out", "filter_fault"]
+# A fault must last this long (seconds) before it is shown or notified. The
+# box briefly raises "motor fault" when it pauses the drum because a cat came
+# near during cleaning; that resolves by itself within a minute or two.
+FAULT_GRACE = {
+    "motor_fault": 180,
+    "g_sensor_fault": 180,
+    "box_out": 60,
+    "filter_fault": 60,
+    "full_fault": 30,
+}
 FAULT_MESSAGES = {
     "motor_fault": "Kum kabında motor arızası var.",
     "g_sensor_fault": "Kum kabının ağırlık sensöründe arıza var.",
