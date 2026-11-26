@@ -24,6 +24,7 @@ from .classifier import build_model, classify, should_learn
 from .const import (
     BOX_STATES,
     CONF_MIN_MANUAL,
+    CONF_CRITICAL,
     CONF_NOTIFY,
     CONF_TUYA_DEVICE_ID,
     DEFAULT_MIN_MANUAL,
@@ -51,6 +52,7 @@ from .const import (
     ST_NOT_CAT,
     ST_PENDING,
     URL_PHOTOS,
+    IDLE_CLOSE_DELAY,
     VISIT_TIMEOUT,
 )
 from .local import LocalBox, LocalError
@@ -95,6 +97,7 @@ def _ms_to_iso(ms: int | None) -> str:
 
 
 CRITICAL_PUSH = {"sound": {"name": "default", "critical": 1, "volume": 1.0}, "interruption-level": "critical"}
+TIME_SENSITIVE_PUSH = {"sound": "default", "interruption-level": "time-sensitive"}
 
 
 class LitterTracker:
@@ -113,6 +116,7 @@ class LitterTracker:
         self.current: dict | None = None
         self._seen: deque = deque(maxlen=300)
         self._timeout_unsub: CALLBACK_TYPE | None = None
+        self._idle_close_unsub: CALLBACK_TYPE | None = None
         self._subscribers: set[Callable[[], None]] = set()
         self._hooked_manager: Any = None
         self.photo_dir = Path(hass.config.path(DOMAIN, "photos"))
@@ -131,6 +135,10 @@ class LitterTracker:
     @property
     def notify_services(self) -> list[str]:
         return list(self.entry.options.get(CONF_NOTIFY, []))
+
+    def _fault_push(self, service: str) -> dict:
+        critical = self.entry.options.get(CONF_CRITICAL)
+        return CRITICAL_PUSH if critical is None or service in critical else TIME_SENSITIVE_PUSH
 
     async def async_load(self) -> None:
         data = await self._store.async_load() or {}
@@ -272,6 +280,7 @@ class LitterTracker:
                 if new != self.status:
                     self.status = new
                     changed = True
+                    self._on_status(new, t)
             elif dp == DP_DURATION_DAY and self.current and isinstance(value, int):
                 self.current.setdefault("duration", value)
             elif dp == DP_RECORD:
@@ -306,7 +315,7 @@ class LitterTracker:
             if label in self._fault_timers:
                 continue
             self._fault_timers[label] = async_call_later(
-                self.hass, FAULT_GRACE.get(label, 60), lambda _now, lbl=label: self._confirm_fault(lbl)
+                self.hass, FAULT_GRACE.get(label, 60), callback(lambda _now, lbl=label: self._confirm_fault(lbl))
             )
         for label in before - after:
             if (cancel := self._fault_timers.pop(label, None)) is not None:
@@ -327,12 +336,13 @@ class LitterTracker:
         self.hass.async_create_task(self._async_notify_fault(label, True))
         self._notify_change()
 
-    # A confirmed fault needs someone at the box, so it rings through silent mode and Focus on iOS.
+    # A confirmed fault needs someone at the box: critical (rings through silent mode and Focus on iOS)
+    # for the phones chosen in the options, time-sensitive for the rest.
     async def _async_notify_fault(self, label: str, active: bool) -> None:
         tag = f"kedi_kumu_fault_{label}"
         for service in self.notify_services:
             data = (
-                {"title": self._text("fault_title"), "message": FAULT_MESSAGES[self._lang].get(label, label), "data": {"tag": tag, "group": "kedi_kumu", "push": CRITICAL_PUSH}}
+                {"title": self._text("fault_title"), "message": FAULT_MESSAGES[self._lang].get(label, label), "data": {"tag": tag, "group": "kedi_kumu", "push": self._fault_push(service)}}
                 if active
                 else {"message": "clear_notification", "data": {"tag": tag}}
             )
@@ -438,6 +448,37 @@ class LitterTracker:
             return True
         return False
 
+    def _on_status(self, status: str, t: int | None) -> None:
+        """Close a visit the box gave up on.
+
+        After a litter refill the box sometimes reports a cat (cat_in + a
+        weight record) that never leaves: no cat_out comes and the box goes
+        back to standby. A real visit always ends with cat_out, and its short
+        standby blips last seconds, so a visit is closed once the box has been
+        in standby for IDLE_CLOSE_DELAY without cat activity.
+        """
+        self._cancel_idle_close()
+        if status != "standby" or self.current is None:
+            return
+        visit_id = self.current["id"]
+
+        @callback
+        def _close(_now: datetime) -> None:
+            self._idle_close_unsub = None
+            if self.current is None or self.current["id"] != visit_id or self.status != "standby":
+                return
+            _LOGGER.info("Closing visit %s: box back in standby without cat_out", visit_id)
+            self.current["closed_by"] = "standby"
+            self._finish_visit(t)
+            self._notify_change()
+
+        self._idle_close_unsub = async_call_later(self.hass, IDLE_CLOSE_DELAY, _close)
+
+    def _cancel_idle_close(self) -> None:
+        if self._idle_close_unsub:
+            self._idle_close_unsub()
+            self._idle_close_unsub = None
+
     def _start_visit(self, weight: int, t: int | None) -> None:
         result = classify(weight, self.cats, self.min_manual)
         self.current = {
@@ -472,6 +513,7 @@ class LitterTracker:
         if visit is None:
             return
         self.current = None
+        self._cancel_idle_close()
         if self._timeout_unsub:
             self._timeout_unsub()
             self._timeout_unsub = None

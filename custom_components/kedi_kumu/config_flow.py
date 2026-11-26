@@ -26,6 +26,7 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_MIN_MANUAL,
+    CONF_CRITICAL,
     CONF_NOTIFY,
     CONF_TUYA_DEVICE_ID,
     DEFAULT_MIN_MANUAL,
@@ -105,6 +106,9 @@ class KediKumuOptionsFlow(OptionsFlow):
                     vol.Optional(CONF_NOTIFY, default=options.get(CONF_NOTIFY, [])): SelectSelector(
                         SelectSelectorConfig(options=services, multiple=True, mode=SelectSelectorMode.LIST)
                     ),
+                    vol.Optional(
+                        CONF_CRITICAL, default=options.get(CONF_CRITICAL, options.get(CONF_NOTIFY, []))
+                    ): SelectSelector(SelectSelectorConfig(options=services, multiple=True, mode=SelectSelectorMode.LIST)),
                     vol.Required(
                         CONF_MIN_MANUAL, default=options.get(CONF_MIN_MANUAL, DEFAULT_MIN_MANUAL)
                     ): NumberSelector(NumberSelectorConfig(min=1, max=10, step=1, mode=NumberSelectorMode.BOX)),

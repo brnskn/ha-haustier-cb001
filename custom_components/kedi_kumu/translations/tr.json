@@ -21,7 +21,8 @@
         "description": "Kim kullandı sorusu hangi telefonlara gelsin, kaç etiketten sonra otomatik tanısın?",
         "data": {
           "notify_services": "Bildirim gönderilecek telefonlar",
-          "min_manual": "Otomatik tanıma için gereken etiket sayısı"
+          "min_manual": "Otomatik tanıma için gereken etiket sayısı",
+          "critical_services": "Arıza bildirimi critical gidecek telefonlar (sessiz modu deler); diğerlerine time-sensitive gider"
         }
       }
     }

@@ -21,7 +21,8 @@
         "description": "Phones that get the who-was-it question and labels needed before auto recognition.",
         "data": {
           "notify_services": "Phones to notify",
-          "min_manual": "Labels needed per cat"
+          "min_manual": "Labels needed per cat",
+          "critical_services": "Critical fault alerts (ring through silent mode); other phones get time-sensitive ones"
         }
       }
     }

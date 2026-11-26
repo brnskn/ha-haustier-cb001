@@ -200,6 +200,38 @@ async def tracker_tests():
     tr._timeout_visit(dt_util.utcnow())
     check(tr.current is None and tr.visits[-1]["weight"] == 3800, "timeout closes the visit")
 
+    # Box gives up on a visit (ghost cat after a litter refill): cat_in, weight, back to standby, no cat_out
+    import custom_components.kedi_kumu.tracker as tracker_mod
+    tracker_mod.IDLE_CLOSE_DELAY = 0.2
+    tg = t0 + 200 * 60000
+    tr._handle_report([{"dpId": 24, "t": tg, "value": "cat_in"}])
+    tr._handle_report([{"dpId": 104, "t": tg + 100, "value": rec(3, 1230, 22, 14, 8)}])
+    tr._handle_report([{"dpId": 24, "t": tg + 300000, "value": "standby"}])
+    check(tr.current is not None, "ghost visit still open right after standby")
+    await asyncio.sleep(0.4)
+    check(tr.current is None and tr.visits[-1]["weight"] == 1230 and tr.visits[-1].get("closed_by") == "standby",
+          "standby without cat_out closes the visit")
+    # a real visit with a short standby blip is not cut
+    tv = tg + 400 * 60000
+    n = len(tr.visits)
+    tr._handle_report([{"dpId": 24, "t": tv, "value": "cat_in"}])
+    tr._handle_report([{"dpId": 104, "t": tv + 100, "value": rec(3, 3800, 22, 30, 0)}])
+    tr._handle_report([{"dpId": 24, "t": tv + 4000, "value": "standby"}])
+    tr._handle_report([{"dpId": 24, "t": tv + 5000, "value": "cat_in"}])
+    await asyncio.sleep(0.4)
+    check(tr.current is not None, "standby blip during a visit does not close it")
+    tr._handle_report([{"dpId": 104, "t": tv + 30000, "value": rec(1, 0, 22, 30, 30)}])
+    check(tr.current is None and len(tr.visits) == n + 1 and not tr.visits[-1].get("closed_by"), "cat_out closes it as usual")
+    tracker_mod.IDLE_CLOSE_DELAY = 120
+
+    # Fault alerts: critical for the chosen phones, time-sensitive for the rest
+    check(tr._fault_push("mobile_app_test")["interruption-level"] == "critical", "fault alert critical without the option")
+    entry.options["critical_services"] = ["mobile_app_a"]
+    check(tr._fault_push("mobile_app_a")["interruption-level"] == "critical"
+          and tr._fault_push("mobile_app_b") == {"sound": "default", "interruption-level": "time-sensitive"},
+          "fault alert critical only for chosen phones")
+    del entry.options["critical_services"]
+
     # Photo upload
     jpg = "data:image/jpeg;base64," + base64.b64encode(b"\xff\xd8\xff\xe0" + b"0" * 100).decode()
     info = await tr.async_save_cat(a["id"], photo=jpg)

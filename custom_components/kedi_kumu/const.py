@@ -5,6 +5,9 @@ VERSION = "1.0.0"
 
 CONF_TUYA_DEVICE_ID = "tuya_device_id"
 CONF_NOTIFY = "notify_services"
+# Phones whose fault alerts ring through silent mode; the others get time-sensitive ones.
+# Missing option = every notify phone (behaviour before the option existed).
+CONF_CRITICAL = "critical_services"
 CONF_MIN_MANUAL = "min_manual"
 DEFAULT_MIN_MANUAL = 3
 
@@ -103,3 +106,4 @@ ST_NOT_CAT = "not_cat"
 MAX_VISITS = 3000
 MAX_SAMPLES = 30
 VISIT_TIMEOUT = 20 * 60  # seconds before an unfinished visit is closed
+IDLE_CLOSE_DELAY = 120  # seconds in standby (no cat_out) before an open visit is closed

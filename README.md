@@ -53,7 +53,7 @@ This integration decodes those records and turns them into visits.
   - Level litter, UV sterilization, drum light, auto clean and clean delay.
   - Child lock, Do Not Disturb (time range), cleaning schedule, sterilization schedule.
   - Deodorizer filter days left and reset; empty the litter (litter change).
-  - All faults: waste bag full, drawer out, motor, weight sensor, filter. Each one sends a phone notification that clears itself when fixed.
+  - All faults: waste bag full, drawer out, motor, weight sensor, filter. Each one sends a phone notification that clears itself when fixed. The notification is a critical alert on the phones chosen in the options and time-sensitive on the others.
 - **Entities per cat**, so Home Assistant keeps long-term statistics:
   - Weight (kg).
   - Last visit.
@@ -106,6 +106,7 @@ Litter boxes found in the Tuya integration (category `msp`) are listed. Pick you
 | --- | --- | --- |
 | Phones to notify | none | `notify.mobile_app_*` services that receive "Who was it?" questions. |
 | Labels needed per cat | 3 | Manual labels before a cat is recognized automatically. |
+| Critical fault alerts | all notified phones | Phones whose fault notifications are iOS critical alerts (they ring through silent mode and Focus). The other notified phones get time-sensitive ones. |
 
 ## The card
 
@@ -248,6 +249,8 @@ Names and meanings come from the device's Tuya thing model (`GET /v2.0/cloud/thi
 | 107 | `clean_onoff_time` | Cleaning schedule | raw, 3 bytes per entry: `hour minute enabled` |
 | 108 | `filter_reset` | Deodorizer filter replaced | bool trigger |
 | 109 | `filter_days` | Deodorizer filter days left | 0–30 |
+
+After a litter refill the box sometimes reports a visit that never ends: `cat_in` and a weight record (the added litter), then back to `standby` with no `cat_out`. A real visit always ends with `cat_out`, and the short `standby` blips during a visit last seconds, so an open visit is closed after 2 minutes in `standby` without cat activity (stored with `closed_by: standby`). Other unfinished visits are closed after 20 minutes.
 
 DP 22 (`fault`) bits, in order: `motor_fault`, `g_sensor_fault`, `full_fault` (bag full), `box_out` (waste drawer cover not closed), `filter_fault` (filter expired). The box briefly raises `motor_fault` when it pauses the drum because a cat came near during cleaning. Each fault must last a grace period (motor and weight sensor 3 min, cover and filter 1 min, bag full 30 s) before it is shown or notified.
 
